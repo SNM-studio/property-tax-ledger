@@ -1405,12 +1405,9 @@ function renderClientOverview(cl){
     var fArb=rows.filter(function(r){return r.status==='Arbitration';}).length;
     var fFormal=rows.filter(function(r){return r.status==='Awaiting Formal';}).length;
     var fPrelim=totMV(rows,'prelim');var fPrior=totMV(rows,'priorVal');
-    var fChg=fPrior>0&&fPrelim>0?((fPrelim-fPrior)/fPrior*100).toFixed(1):null;
 
     h+='<div class="cc-card" onclick="selectFolder(\''+cl.id+'\',\''+f.id+'\')">';
-    h+='<div class="cc-card-hdr"><h3>'+esc(f.year)+' Tax Year</h3>';
-    if(fChg!==null)h+='<span class="cc-yr" style="background:'+(parseFloat(fChg)>0?'#dc3545':'#28a745')+'">'+( parseFloat(fChg)>0?'+':'')+fChg+'%</span>';
-    h+='</div>';
+    h+='<div class="cc-card-hdr"><h3>'+esc(f.year)+' Tax Year</h3></div>';
     h+='<div class="cc-card-body">';
     h+='<div class="cc-savings">'+(fSavings>0?fmtMV(fSavings):'$0')+'<span>Tax Savings</span></div>';
     h+='<div class="cc-stats">';
