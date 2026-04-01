@@ -834,12 +834,14 @@ function setSortDir(idx,dir){
   if(!sortLevels[idx])return;
   sortLevels[idx].dir=dir;
   if(idx===0){sortDir=dir;sortKey=sortLevels[0].key;}
-  renderTable();
-  // Re-open sort panel after re-render
+  renderSortPanel(); // update panel buttons only
+  renderTable();     // re-sort the data
+  // Keep panel open
+  _sortPanelOpen=true;
   setTimeout(function(){
     var sp=document.getElementById('sortPanel');
-    if(sp)sp.classList.add('open');
-  },10);
+    if(sp){sp.classList.add('open');renderSortPanel();}
+  },15);
 }
 function removeSortLevel(idx){
   sortLevels.splice(idx,1);
@@ -851,6 +853,37 @@ function removeSortLevel(idx){
     if(sp&&sortLevels.length)sp.classList.add('open');
   },10);
 }
+function renderSortPanel(){
+  var sp=document.getElementById('sortPanel');
+  if(!sp)return;
+  var FIELD_NAMES={cad:'CAD',account:'Account #',address:'Address',propName:'Property Name',owner:'Owner',priorVal:'Prior Value',prelim:'Prelim Market',prelimAppr:'Prelim Appr',finalAppr:'Final Appr',finalMkt:'Final Market',mktRed:'Mkt Reduction',pctChange:'% Change',taxSavings:'Tax Savings',status:'Status',hearingDate:'Hearing Date',arbDate:'Arb Date'};
+  var MV_FIELDS=['priorVal','prelim','prelimAppr','finalAppr','finalMkt','mktRed','taxSavings','pctChange'];
+  var inner='<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Sort Order <span style="font-weight:400;text-transform:none">(up to 3 levels)</span></div>';
+  if(sortLevels.length===0){
+    inner+='<div style="color:#aaa;font-size:12px;padding:8px 0 4px">Click any column header to add a sort level.</div>';
+  } else {
+    for(var si=0;si<sortLevels.length;si++){
+      var lv=sortLevels[si];
+      var nm=FIELD_NAMES[lv.key]||lv.key;
+      var badge=si===0?'#002147':si===1?'#34495e':'#7f8c8d';
+      var isNum=MV_FIELDS.indexOf(lv.key)>=0;
+      var lblAsc=isNum?'Low → High':'A → Z';
+      var lblDesc=isNum?'High → Low':'Z → A';
+      var ascActive=lv.dir===1;
+      inner+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px 12px;background:#f8f9fb;border-radius:8px;border-left:3px solid '+badge+'">';
+      inner+='<span style="background:'+badge+';color:#fff;font-size:9px;font-weight:700;min-width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">'+(si+1)+'</span>';
+      inner+='<span style="flex:1;font-size:12px;font-weight:600;color:#333">'+nm+'</span>';
+      inner+='<div style="display:flex;border:1px solid #ddd;border-radius:5px;overflow:hidden">';
+      inner+='<button onclick="setSortDir('+si+',1)" style="padding:4px 10px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:'+(ascActive?'#002147':'#fff')+';color:'+(ascActive?'#fff':'#999')+'">'+lblAsc+'</button>';
+      inner+='<button onclick="setSortDir('+si+',-1)" style="padding:4px 10px;font-size:11px;font-weight:600;border:none;border-left:1px solid #ddd;cursor:pointer;background:'+(!ascActive?'#002147':'#fff')+';color:'+(!ascActive?'#fff':'#999')+'">'+lblDesc+'</button>';
+      inner+='</div>';
+      inner+='<button onclick="removeSortLevel('+si+')" style="background:none;border:1px solid #ddd;border-radius:5px;color:#bbb;cursor:pointer;font-size:14px;padding:2px 8px;line-height:1;flex-shrink:0">×</button>';
+      inner+='</div>';
+    }
+    inner+='<button onclick="sortLevels=[];sortKey=null;sortDir=1;renderTable()" style="font-size:11px;color:#aaa;background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:4px;display:block">Clear all sorts</button>';
+  }
+  sp.innerHTML=inner;
+}
 function toggleSortLevelDir(idx){
   if(!sortLevels[idx])return;
   sortLevels[idx].dir*=-1;
@@ -860,7 +893,14 @@ function toggleSortLevelDir(idx){
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────
 // ── Sidebar Search ─────────────────────────────────────────────────────────────
-var _sbSearchTimer=null;
+var _sortPanelOpen=false;
+function toggleSortPanel(){
+  _sortPanelOpen=!_sortPanelOpen;
+  var sp=document.getElementById('sortPanel');
+  if(!sp)return;
+  if(_sortPanelOpen){renderSortPanel();sp.classList.add('open');}
+  else{sp.classList.remove('open');}
+}
 function onSbSearch(val){
   clearTimeout(_sbSearchTimer);
   var resultsEl=document.getElementById('sbSearchResults');
@@ -963,9 +1003,9 @@ document.addEventListener('click',function(e){
     results.style.display='none';
   }
   var sortPanel=document.getElementById('sortPanel');
-  if(sortPanel&&!e.target.closest('#sortPanel')&&!e.target.closest('[onclick*="sortPanel"]')){
+  if(sortPanel&&_sortPanelOpen&&!e.target.closest('#sortPanel')&&!e.target.closest('#sortBtn')){
     sortPanel.classList.remove('open');
-    sortPanel.style.display='none';
+    _sortPanelOpen=false;
   }
 });
 
@@ -2752,36 +2792,8 @@ function renderTab(){
       +'<input placeholder="Search address, owner, account..." value="'+esc(searchQ)+'" oninput="searchQ=this.value;renderTable()"/>'
       +'<select onchange="filterCAD=this.value;renderTable()">'+cadOpts+'</select>'
       +'<select onchange="filterStatus=this.value;renderTable()">'+stOpts+'</select>'
-      +'<button onclick="document.getElementById(\'sortPanel\').classList.toggle(\'open\')" class="btn btn-sm" style="background:'+(sortLevels.length?'var(--navy)':'#eee')+';color:'+(sortLevels.length?'#fff':'#555')+';font-size:11px;position:relative" title="Multi-sort">&#9651; Sort'+(sortLevels.length?' ('+sortLevels.length+')':'')+'</button>'
-      +'<div id="sortPanel" style="display:none;position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.12)">'
-      +'<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Sort Order <span style="font-weight:400;text-transform:none">(up to 3 levels)</span></div>'
-      +(function(){
-        var FIELD_NAMES={cad:'CAD',account:'Account #',address:'Address',propName:'Property Name',owner:'Owner',priorVal:'Prior Value',prelim:'Prelim Market',prelimAppr:'Prelim Appr',finalAppr:'Final Appr',finalMkt:'Final Market',mktRed:'Mkt Reduction',pctChange:'% Change',taxSavings:'Tax Savings',status:'Status'};
-        var MV_FIELDS=['priorVal','prelim','prelimAppr','finalAppr','finalMkt','mktRed','taxSavings','pctChange'];
-        var s='';
-        for(var si=0;si<sortLevels.length;si++){
-          var lv=sortLevels[si];var nm=FIELD_NAMES[lv.key]||lv.key;
-          var badge=si===0?'#002147':si===1?'#34495e':'#7f8c8d';
-          var isNum=MV_FIELDS.indexOf(lv.key)>=0;
-          var lblAsc=isNum?'Low → High':'A → Z';
-          var lblDesc=isNum?'High → Low':'Z → A';
-          var ascActive=lv.dir===1;
-          s+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px 12px;background:#f8f9fb;border-radius:8px;border-left:3px solid '+badge+'">';
-          s+='<span style="background:'+badge+';color:#fff;font-size:9px;font-weight:700;min-width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">'+(si+1)+'</span>';
-          s+='<span style="flex:1;font-size:12px;font-weight:600;color:#333">'+nm+'</span>';
-          // Two toggle buttons
-          s+='<div style="display:flex;border:1px solid #ddd;border-radius:5px;overflow:hidden">';
-          s+='<button onclick="setSortDir('+si+',1)" style="padding:4px 10px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:'+(ascActive?'#002147':'#fff')+';color:'+(ascActive?'#fff':'#999')+'">'+lblAsc+'</button>';
-          s+='<button onclick="setSortDir('+si+',-1)" style="padding:4px 10px;font-size:11px;font-weight:600;border:none;border-left:1px solid #ddd;cursor:pointer;background:'+(!ascActive?'#002147':'#fff')+';color:'+(!ascActive?'#fff':'#999')+'">'+lblDesc+'</button>';
-          s+='</div>';
-          s+='<button onclick="removeSortLevel('+si+')" style="background:none;border:1px solid #ddd;border-radius:5px;color:#bbb;cursor:pointer;font-size:14px;padding:2px 8px;line-height:1;flex-shrink:0" title="Remove this sort">×</button>';
-          s+='</div>';
-        }
-        if(sortLevels.length===0)s='<div style="color:#aaa;font-size:12px;padding:8px 0 4px">Click any column header to add a sort level.</div>';
-        if(sortLevels.length>0)s+='<button onclick="sortLevels=[];sortKey=null;sortDir=1;renderTable()" style="font-size:11px;color:#aaa;background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:4px;display:block">Clear all sorts</button>';
-        return s;
-      })()
-      +'</div>'
+      +'<button onclick="toggleSortPanel()" class="btn btn-sm" id="sortBtn" style="background:'+(sortLevels.length?'var(--navy)':'#eee')+';color:'+(sortLevels.length?'#fff':'#555')+';font-size:11px;position:relative" title="Multi-sort">&#9651; Sort'+(sortLevels.length?' ('+sortLevels.length+')':'')+'</button>'
+      +'<div id="sortPanel" style="position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.12)"></div>'
       +'</div>'
       +'<button onclick="viewMode=viewMode===\'full\'?\'basic\':\'full\';renderTable()" class="btn btn-sm" style="background:'+(viewMode==='full'?'var(--navy)':'#eee')+';color:'+(viewMode==='full'?'#fff':'#555')+';font-size:11px" title="Toggle expanded columns">&#8644; '+(viewMode==='full'?'Full View':'Expand')+'</button>'
       +'<div style="margin-left:auto;display:flex;gap:6px">'
