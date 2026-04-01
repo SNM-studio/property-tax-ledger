@@ -817,7 +817,7 @@ function exportExcel(){
     var pv=parseFloat(r.pctChange)||0;
     var pctColor=pv<0?'#155724':pv>0?'#721c24':'#444';
     var redAmt=parseMV(r.mktRed)||0;var savAmt=parseMV(r.taxSavings)||0;
-    var displayStatus=r.status==='Completed'?'&#10003; Done':r.status===''?'':r.status;
+    var displayStatus=r.status==='Completed'?'✓ Done':(r.status===''||r.status==='None')?'':r.status;
     html+='<tr>';
     html+='<td style="background:'+bg+';color:#888;font-size:9pt;text-align:center;padding:5px 6px;border:1px solid #eee;">'+(ri+1)+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+(r.cad||'')+'</td>';
@@ -1293,7 +1293,7 @@ function renderTab(){
       +'<div class="legend-item"><div class="legend-dot" style="background:#CCE5FF;border-color:#004085"></div>Arbitration</div>'
       +'<div class="legend-item"><div class="legend-dot" style="background:#D4EDDA;border-color:#28A745"></div>Reduced Below Last Year</div>'
       +'<div class="legend-item"><div class="legend-dot" style="background:#EAD5F5;border-color:#9B59B6"></div>Awaiting Formal</div>'
-      +'<div class="legend-item"><span style="font-size:12px">&#10003;</span> Completed</div>'
+      +'<div class="legend-item"><span style="font-size:12px">✓</span> Completed</div>'
       +'<span style="font-size:11px;color:#888;margin-left:6px">&#8595; = reduced &nbsp; * = auto-calculated</span>'
       +'</div>';
     renderTable();renderKPIs();
