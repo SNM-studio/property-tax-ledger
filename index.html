@@ -660,7 +660,7 @@ function applyMap(rawRows,mapping){
     for(var j=0;j<mapping.length;j++){
       var m=mapping[j];var val=String(raw[m.col]||'').trim();
       if(['priorVal','prelim','prelimAppr','finalAppr','finalMkt'].indexOf(m.field)>=0)val=val.replace(/[$,]/g,'');
-      if(m.field==='cad'){var match=COUNTIES.filter(function(co){return co.toLowerCase()===val.toLowerCase();})[0];val=match||val||'Harris';}
+      if(m.field==='cad'){val=val||'Harris';}
       if(m.field==='status'){var match=STATUS.filter(function(s){return s.toLowerCase()===val.toLowerCase();})[0];val=match||'';}
       r[m.field]=val;
     }
@@ -1010,7 +1010,7 @@ function buildExecSummaryHtml(cl, folders){
     var ff=folders[fi];var fr=ff.rows||[];var L=ff.labels;
     h+='<div class="sec-hdr">'+ff.year+' &mdash; Accounts by County</div>';
     h+='<table class="data-table"><tr><th>County</th><th class="tr">Accounts</th><th class="tr">% Portfolio</th><th class="tr">Reduced Below Prior</th><th class="tr">'+esc(L.prior)+'</th><th class="tr">Tax Savings</th></tr>';
-    var CNTS=['Harris','Brazoria','Montgomery','Fort Bend','Galveston','San Jacinto','Other'];
+    var CNTS=fr.reduce(function(acc,r){if(r.cad&&acc.indexOf(r.cad)<0)acc.push(r.cad);return acc;},[]).sort();
     for(var ci=0;ci<CNTS.length;ci++){
       var co=CNTS[ci];var cr=fr.filter(function(r){return r.cad===co;});
       if(!cr.length)continue;
@@ -1178,7 +1178,12 @@ function renderTable(){
     for(var fi=0;fi<vf.length;fi++){
       var fld=vf[fi];
       if(fld.k==='_rownum'){tbody+='<td class="num-cell">'+(ri+1)+'</td>';}
-      else if(fld.k==='cad'){var opts='';for(var ci=0;ci<COUNTIES.length;ci++)opts+='<option'+(r.cad===COUNTIES[ci]?' selected':'')+'>'+COUNTIES[ci]+'</option>';tbody+='<td style="min-width:'+fld.w+'px"><select'+(_unlocked?'':' disabled')+' onchange="updateField(\''+r.id+'\',\'cad\',this.value)">'+opts+'</select></td>';}
+      else if(fld.k==='cad'){
+        var allCads=(f.rows||[]).reduce(function(acc,row){if(row.cad&&acc.indexOf(row.cad)<0)acc.push(row.cad);return acc;},[]).sort();
+        if(r.cad&&allCads.indexOf(r.cad)<0)allCads.push(r.cad);
+        var opts='';for(var ci=0;ci<allCads.length;ci++)opts+='<option'+(r.cad===allCads[ci]?' selected':'')+'>'+allCads[ci]+'</option>';
+        tbody+='<td style="min-width:'+fld.w+'px"><select'+(_unlocked?'':' disabled')+' onchange="updateField(\''+r.id+'\',\'cad\',this.value)">'+opts+'</select></td>';
+      }
       else if(fld.k==='status'){var sopts='';for(var si=0;si<STATUS.length;si++)sopts+='<option'+(r.status===STATUS[si]?' selected':'')+'>'+STATUS[si]+'</option>';tbody+='<td style="min-width:'+fld.w+'px"><select'+(_unlocked?'':' disabled')+' onchange="updateField(\''+r.id+'\',\'status\',this.value)">'+sopts+'</select></td>';}
       else if(fld.k==='pctChange'){tbody+='<td class="pct-cell calc-cell" style="min-width:'+fld.w+'px;text-align:right;font-weight:600;color:'+pctColor+'">'+esc(r.pctChange||'')+'</td>';}
       else if(fld.k==='mktRed'){tbody+='<td class="calc-cell" style="min-width:'+fld.w+'px;text-align:right;font-weight:600;color:#155724">'+esc(fmtMV(r.mktRed)||'')+'</td>';}
@@ -1210,7 +1215,8 @@ function renderSummary(){
   var chg=(t24>0&&t25>0)?((t25-t24)/t24*100).toFixed(1):null;
   var savings=totMV(rows,'taxSavings');
   var ctyData=[];
-  for(var i=0;i<COUNTIES.length;i++){var co=COUNTIES[i];var cr=rows.filter(function(r){return r.cad===co;});if(cr.length)ctyData.push({county:co,count:cr.length,pct:(cr.length/rows.length*100).toFixed(1),v24:totMV(cr,'priorVal')});}
+  var detectedCads=rows.reduce(function(acc,r){if(r.cad&&acc.indexOf(r.cad)<0)acc.push(r.cad);return acc;},[]).sort();
+  for(var i=0;i<detectedCads.length;i++){var co=detectedCads[i];var cr=rows.filter(function(r){return r.cad===co;});if(cr.length)ctyData.push({county:co,count:cr.length,pct:(cr.length/rows.length*100).toFixed(1),v24:totMV(cr,'priorVal')});}
   var topRed=rows.map(function(r){return{address:r.address,owner:r.owner,priorVal:r.priorVal,finalAppr:r.finalAppr,_red:(parseMV(r.priorVal)||0)-(parseMV(r.finalAppr)||0)};})
     .filter(function(r){return r._red>0;}).sort(function(a,b){return b._red-a._red;}).slice(0,10);
   var cRows='';for(var i=0;i<ctyData.length;i++){var x=ctyData[i];cRows+='<tr><td>'+esc(x.county)+'</td><td style="text-align:right">'+x.count+'</td><td style="text-align:right">'+x.pct+'%</td><td style="text-align:right">'+(x.v24>0?'$'+Math.round(x.v24).toLocaleString():'--')+'</td></tr>';}
@@ -1263,7 +1269,8 @@ function renderTab(){
   var f=getActiveFolder();if(!f)return;var el=document.getElementById('tabContent');
   if(activeTab==='ledger'){
     var cadOpts='<option'+(filterCAD==='All'?' selected':'')+'>All</option>';
-    for(var i=0;i<COUNTIES.length;i++)cadOpts+='<option'+(filterCAD===COUNTIES[i]?' selected':'')+'>'+COUNTIES[i]+'</option>';
+    var detectedCounties=(f.rows||[]).reduce(function(acc,r){if(r.cad&&acc.indexOf(r.cad)<0)acc.push(r.cad);return acc;},[]).sort();
+    for(var i=0;i<detectedCounties.length;i++)cadOpts+='<option'+(filterCAD===detectedCounties[i]?' selected':'')+'>'+esc(detectedCounties[i])+'</option>';
     var stOpts='<option'+(filterStatus==='All'?' selected':'')+'>All</option>';
     for(var i=0;i<STATUS.length;i++){if(STATUS[i]!=='')stOpts+='<option'+(filterStatus===STATUS[i]?' selected':'')+'>'+STATUS[i]+'</option>';}
     el.innerHTML='<div class="kpi-row">'
