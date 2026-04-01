@@ -536,8 +536,8 @@ function canSeeClient(cid){
   return cid===_clientSession;
 }
 var COUNTIES=['Harris','Brazoria','Montgomery','Fort Bend','Galveston','San Jacinto','Other'];
-var STATUS=['','Active Litigation','Arbitration','Reduced Below Last Year','Awaiting Formal','Completed'];
-var SCLS={'Active Litigation':'lit','Arbitration':'arb','Reduced Below Last Year':'reduced','Awaiting Formal':'formal','Completed':'completed'};
+var STATUS=['','Active Litigation','Arbitration','Reduced Below Last Year','Awaiting Formal'];
+var SCLS={'Active Litigation':'lit','Arbitration':'arb','Reduced Below Last Year':'reduced','Awaiting Formal':'formal'};
 var STATUS_FILLS={'Active Litigation':'#FFF3CD','Arbitration':'#CCE5FF','Reduced Below Last Year':'#D4EDDA','Awaiting Formal':'#EAD5F5'};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -639,7 +639,34 @@ function renderSidebar(){
 
 function toggleExpand(cid){var c=getClient(cid);if(!c)return;c.expanded=c.expanded===false?true:false;saveDB();renderSidebar();}
 function toggleClient(cid){activeClientId=cid;activeFolderId=null;activeTab='ledger';filterCAD='All';filterStatus='All';searchQ='';sortKey=null;sortDir=1;renderSidebar();renderMain();}
-function selectFolder(cid,fid){activeClientId=cid;activeFolderId=fid;activeTab='ledger';filterCAD='All';filterStatus='All';searchQ='';sortKey=null;sortDir=1;renderSidebar();renderMain();}
+function selectFolder(cid,fid){
+  // Block client access to unpublished folders
+  if(isClientSession()){
+    var f=getFolder(cid,fid);
+    if(f&&!f.published){showUnpublishedMsg(f.year);return;}
+  }
+  activeClientId=cid;activeFolderId=fid;activeTab='ledger';filterCAD='All';filterStatus='All';searchQ='';sortKey=null;sortDir=1;renderSidebar();renderMain();
+}
+function togglePublished(cid,fid,val){
+  var f=getFolder(cid,fid);if(!f)return;
+  f.published=val;
+  saveDB();
+  // Re-render client overview to update toggle state
+  var cl=getClient(cid);if(cl)renderClientOverview(cl);
+}
+function showUnpublishedMsg(year){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:200';
+  overlay.innerHTML='<div style="background:#fff;border-radius:12px;padding:36px 40px;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+    +'<div style="font-size:36px;margin-bottom:16px">📋</div>'
+    +'<h3 style="font-size:17px;font-weight:700;color:#002147;margin-bottom:10px">'+year+' Report — Update In Progress</h3>'
+    +'<p style="font-size:13px;color:#666;line-height:1.7;margin-bottom:20px">Your '+year+' property tax report is currently being prepared and finalized by our team. Please check back soon for your most up-to-date results.</p>'
+    +'<p style="font-size:11px;color:#aaa;margin-bottom:20px">If you have questions in the meantime, please contact Lane Property Tax Advocates directly.</p>'
+    +'<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:#002147;color:#fff;border:none;border-radius:7px;padding:10px 28px;font-size:13px;font-weight:600;cursor:pointer">Close</button>'
+    +'</div>';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  document.body.appendChild(overlay);
+}
 function goHome(){
   if(isClientSession())return; // clients can't access command center
   activeClientId=null;activeFolderId=null;renderSidebar();renderDashboard();
@@ -1002,7 +1029,7 @@ function exportExcel(){
     var pv=parseFloat(r.pctChange)||0;
     var pctColor=pv<0?'#155724':pv>0?'#721c24':'#444';
     var redAmt=parseMV(r.mktRed)||0;var savAmt=parseMV(r.taxSavings)||0;
-    var displayStatus=r.status==='Completed'?'✓ Done':(r.status===''||r.status==='None')?'':r.status;
+    var displayStatus=(r.status===''||r.status==='None')?'':r.status;
     html+='<tr>';
     html+='<td style="background:'+bg+';color:#888;font-size:9pt;text-align:center;padding:5px 6px;border:1px solid #eee;">'+(ri+1)+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+(r.cad||'')+'</td>';
@@ -1551,9 +1578,26 @@ function renderClientOverview(cl){
     var fArb=rows.filter(function(r){return r.status==='Arbitration';}).length;
     var fFormal=rows.filter(function(r){return r.status==='Awaiting Formal';}).length;
     var fPrelim=totMV(rows,'prelim');var fPrior=totMV(rows,'priorVal');
+    var isPublished=f.published===true;
+    var cardStyle=(!isPublished&&isClientSession())?'opacity:.7':'';
 
-    h+='<div class="cc-card" onclick="selectFolder(\''+cl.id+'\',\''+f.id+'\')">';
-    h+='<div class="cc-card-hdr"><h3>'+esc(f.year)+' Tax Year</h3></div>';
+    // Card click behavior depends on session and published state
+    var cardClick=isClientSession()&&!isPublished
+      ?'showUnpublishedMsg(\''+f.year+'\')'
+      :'selectFolder(\''+cl.id+'\',\''+f.id+'\')';
+
+    h+='<div class="cc-card" onclick="'+cardClick+'" style="'+cardStyle+'">';
+    h+='<div class="cc-card-hdr" style="position:relative"><h3>'+esc(f.year)+' Tax Year</h3>';
+    // Staff sees published toggle; client sees lock icon if unpublished
+    if(!isClientSession()){
+      h+='<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:rgba(255,255,255,.8);white-space:nowrap">'
+       +'<input type="checkbox" '+(isPublished?'checked':'')+' onchange="togglePublished(\''+cl.id+'\',\''+f.id+'\',this.checked)" style="cursor:pointer;accent-color:#C9A84C"/>'
+       +(isPublished?'<span style="color:#C9A84C">Published</span>':'<span style="opacity:.6">Draft</span>')
+       +'</label>';
+    } else if(!isPublished){
+      h+='<span style="font-size:14px" title="Update in progress">🔒</span>';
+    }
+    h+='</div>';
     h+='<div class="cc-card-body">';
     h+='<div class="cc-savings">'+(fSavings>0?fmtMV(fSavings):'$0')+'<span>Tax Savings</span></div>';
     h+='<div class="cc-stats">';
@@ -1562,7 +1606,11 @@ function renderClientOverview(cl){
     h+='<div class="cc-stat"><div class="sv '+(fLit>0?'red':'')+'">'+fLit+'</div><div class="sl">Litigation</div></div>';
     h+='</div></div>';
     h+='<div class="cc-card-ftr">';
-    h+='<span>&#128193; Click to open ledger</span>';
+    if(!isClientSession()){
+      h+='<span>&#128193; '+(isPublished?'Visible to client':'Hidden from client')+'</span>';
+    } else {
+      h+='<span>&#128193; '+(isPublished?'Click to view report':'Update in progress')+'</span>';
+    }
     if(fArb>0)h+='<span style="color:#004085">&#9632; '+fArb+' Arb</span>';
     if(fFormal>0)h+='<span style="color:#9B59B6">&#9632; '+fFormal+' Formal</span>';
     h+='</div></div>';
@@ -1648,7 +1696,7 @@ function renderTab(){
       +'<div class="legend-item"><div class="legend-dot" style="background:#CCE5FF;border-color:#004085"></div>Arbitration</div>'
       +'<div class="legend-item"><div class="legend-dot" style="background:#D4EDDA;border-color:#28A745"></div>Reduced Below Last Year</div>'
       +'<div class="legend-item"><div class="legend-dot" style="background:#EAD5F5;border-color:#9B59B6"></div>Awaiting Formal</div>'
-      +'<div class="legend-item"><span style="font-size:12px">✓</span> Completed</div>'
+
       +'<span style="font-size:11px;color:#888;margin-left:6px">&#8595; = reduced &nbsp; * = auto-calculated</span>'
       +'</div>';
     renderTable();renderKPIs();
