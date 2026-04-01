@@ -467,6 +467,10 @@ dbRef.on('value',function(snap){
     _booted=true;
     // Check for saved session
     try{
+      var savedUndo=sessionStorage.getItem('ptl_undo');
+      if(savedUndo)undoStack=JSON.parse(savedUndo);
+    }catch(e){}
+    try{
       var saved=sessionStorage.getItem('ptl_session');
       if(saved){
         var sess=JSON.parse(saved);
@@ -773,7 +777,11 @@ function recalcRow(r){
 }
 
 // ── Undo ───────────────────────────────────────────────────────────────────────
-function pushUndo(){undoStack.push(JSON.stringify(db));if(undoStack.length>50)undoStack.shift();}
+function pushUndo(){
+  undoStack.push(JSON.stringify(db));
+  if(undoStack.length>50)undoStack.shift();
+  try{sessionStorage.setItem('ptl_undo',JSON.stringify(undoStack));}catch(e){}
+}
 function undo(){
   if(!checkLock())return;
   if(!undoStack.length){alert('Nothing to undo.');return;}
@@ -1001,12 +1009,56 @@ function delFolder(cid,fid){
 }
 
 // ── Row CRUD ───────────────────────────────────────────────────────────────────
-function addRow(){var f=getActiveFolder();if(!f)return;if(!checkLock())return;pushUndo();if(!f.rows)f.rows=[];f.rows.push(emptyRow());saveDB();renderTable();renderKPIs();}
+function addRow(){var f=getActiveFolder();if(!f)return;if(!checkLock())return;pushUndo();if(!f.rows)f.rows=[];f.rows.push(emptyRow());logAudit('Row Added','New blank account row added to ledger.');saveDB();renderTable();renderKPIs();}
 function removeRow(id){
   var f=getActiveFolder();if(!f)return;if(!checkLock())return;pushUndo();
+  var r=(f.rows||[]).filter(function(x){return x.id===id;})[0];
+  var desc=r?(r.address||r.account||'account'):'account';
+  logAudit('Row Deleted','Deleted row: <i>'+desc+'</i>');
   f.rows=f.rows.filter(function(r){return r.id!==id;});
   saveDB();renderTable();renderKPIs();
 }
+// ── Audit Log ──────────────────────────────────────────────────────────────────
+var FIELD_LABELS={
+  cad:'CAD',account:'Account #',address:'Address',propName:'Property Name',
+  propType:'Property Type',impType:'Improvement Type',owner:'Owner',
+  priorVal:'Prior Year Value',prelim:'Prelim Market Value',prelimAppr:'Prelim Appr Value',
+  finalAppr:'Final Appr Value',finalMkt:'Final Market Value',
+  taxRate:'Tax Rate',status:'Status',notes:'Notes'
+};
+function getActorName(){
+  if(_sessionType==='creator')return 'Creator';
+  if(_sessionType==='employee'&&_employeeId){
+    var emp=(db.employees||[]).filter(function(e){return e.id===_employeeId;})[0];
+    return emp?emp.name:'Employee';
+  }
+  return 'Unknown';
+}
+function logAudit(action,details){
+  var f=getActiveFolder();if(!f)return;
+  if(!f.auditLog)f.auditLog=[];
+  f.auditLog.unshift({
+    ts:Date.now(),
+    actor:getActorName(),
+    sessionType:_sessionType||'unknown',
+    action:action,
+    details:details
+  });
+  // Keep last 500 entries
+  if(f.auditLog.length>500)f.auditLog=f.auditLog.slice(0,500);
+}
+function fmtAuditVal(field,val){
+  if(!val&&val!==0)return '(blank)';
+  var mvFields=['priorVal','prelim','prelimAppr','finalAppr','finalMkt','mktRed','taxSavings'];
+  if(mvFields.indexOf(field)>=0)return fmtMV(val)||'(blank)';
+  return String(val);
+}
+function fmtAuditTime(ts){
+  var d=new Date(ts);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+    +' at '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+}
+
 function updateField(id,field,val){
   var f=getActiveFolder();if(!f)return;
   if(!_unlocked){
@@ -1023,7 +1075,15 @@ function updateField(id,field,val){
     requireUnlock(function(){});return;
   }
   var r=(f.rows||[]).filter(function(x){return x.id===id;})[0];if(!r)return;
-  pushUndo();r[field]=val;recalcRow(r);saveDB();renderKPIs();
+  var oldVal=r[field];
+  pushUndo();r[field]=val;recalcRow(r);
+  // Log the change if value actually changed
+  if(String(oldVal||'')!==String(val||'')){
+    var lbl=FIELD_LABELS[field]||field;
+    var addr=r.address||r.account||'Row';
+    logAudit('Field Changed','<b>'+lbl+'</b> on <i>'+addr+'</i>: '+fmtAuditVal(field,oldVal)+' → '+fmtAuditVal(field,val));
+  }
+  saveDB();renderKPIs();
   var tr=document.querySelector('tr[data-id="'+id+'"]');
   if(tr){
     tr.className=SCLS[r.status]||'';
@@ -1971,12 +2031,14 @@ function renderMain(){
     +'<div class="tabs">'
     +'<button class="tab'+(activeTab==='ledger'?' active':'')+'" onclick="switchTab(\'ledger\')">Account Ledger</button>'
     +'<button class="tab'+(activeTab==='summary'?' active':'')+'" onclick="switchTab(\'summary\')">Summary View</button>'
+    +(isClientSession()?'':'<button class="tab'+(activeTab==='activity'?' active':'')+'" onclick="switchTab(\'activity\')">&#128221; Activity Log</button>')
     +'</div><div id="tabContent"></div>';
   renderTab();
 }
 
 function renderTab(){
   var f=getActiveFolder();if(!f)return;var el=document.getElementById('tabContent');
+  if(activeTab==='activity'){el.innerHTML='<div id="activityContent"></div>';renderActivityLog();return;}
   // On mobile, ledger tab shows desktop notice
   if(activeTab==='ledger'&&isMobile()){
     el.innerHTML='<div class="mob-ledger-notice">'
@@ -2028,6 +2090,60 @@ function renderTab(){
   } else {
     el.innerHTML='<div id="summaryContent"></div>';renderSummary();
   }
+}
+function renderActivityLog(){
+  var f=getActiveFolder();if(!f)return;
+  var el=document.getElementById('activityContent');if(!el)return;
+  var log=f.auditLog||[];
+
+  var h='<div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">';
+  h+='<div style="font-size:13px;font-weight:700;color:var(--navy)">Activity Log <span style="font-size:11px;font-weight:400;color:#888;margin-left:6px">'+log.length+' entries</span></div>';
+  if(isCreator()&&log.length>0){
+    h+='<button onclick="clearActivityLog()" class="btn btn-sm" style="background:#eee;color:#666;font-size:10px">Clear Log</button>';
+  }
+  h+='</div>';
+
+  if(!log.length){
+    h+='<div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:40px;text-align:center;color:#aaa">'
+      +'<div style="font-size:32px;margin-bottom:10px">&#128221;</div>'
+      +'<div style="font-size:13px">No activity recorded yet.</div>'
+      +'<div style="font-size:11px;margin-top:6px">Changes to the ledger will appear here.</div>'
+      +'</div>';
+  } else {
+    h+='<div style="background:#fff;border:1px solid #e0e6ef;border-radius:8px;overflow:hidden">';
+    // Group by date
+    var grouped={};var dateOrder=[];
+    for(var i=0;i<log.length;i++){
+      var entry=log[i];
+      var d=new Date(entry.ts);
+      var dateKey=d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+      if(!grouped[dateKey]){grouped[dateKey]=[];dateOrder.push(dateKey);}
+      grouped[dateKey].push(entry);
+    }
+    for(var di=0;di<dateOrder.length;di++){
+      var dk=dateOrder[di];var entries=grouped[dk];
+      h+='<div style="background:#f8f9fb;padding:8px 16px;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #eee">'+dk+'</div>';
+      for(var ei=0;ei<entries.length;ei++){
+        var e=entries[ei];
+        var t=new Date(e.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+        var badgeColor=e.action==='Row Deleted'?'#dc3545':e.action==='Row Added'?'#28a745':'#002147';
+        h+='<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start">';
+        h+='<div style="background:'+badgeColor+';color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap;margin-top:2px">'+esc(e.action)+'</div>';
+        h+='<div style="font-size:12px;color:#333">'+( e.details||'')+'</div>';
+        h+='<div style="text-align:right;white-space:nowrap">';
+        h+='<div style="font-size:11px;font-weight:600;color:var(--navy)">'+esc(e.actor||'')+'</div>';
+        h+='<div style="font-size:10px;color:#aaa">'+t+'</div>';
+        h+='</div></div>';
+      }
+    }
+    h+='</div>';
+  }
+  el.innerHTML=h;
+}
+function clearActivityLog(){
+  var f=getActiveFolder();if(!f)return;
+  if(!confirm('Clear the entire activity log for this year? This cannot be undone.'))return;
+  f.auditLog=[];saveDB();renderActivityLog();
 }
 function switchTab(t){activeTab=t;renderTab();}
 document.addEventListener('input',function(e){if(e.target&&e.target.id==='pasteArea')onPasteInput();});
