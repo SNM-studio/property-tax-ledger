@@ -1990,25 +1990,34 @@ function buildJsPDF(cl,folders,reportTitle){
     y+=54;
   }
 
-  // KPI strip
+  // KPI strip — 7 tiles
+  var totalPrelimAll=0,totalFinalAll=0;
+  for(var fi0=0;fi0<folders.length;fi0++){var fr0=folders[fi0].rows||[];totalPrelimAll+=totMV(fr0,'prelim');totalFinalAll+=totMV(fr0,'finalAppr');}
+  var totalRedAll=totalPrelimAll>0&&totalFinalAll>0?(totalPrelimAll-totalFinalAll):totalReduced;
+  var avgRedPct=totalPrelimAll>0&&totalRedAll>0?(totalRedAll/totalPrelimAll*100).toFixed(1):null;
   var kpis=[
-    {label:'Total Accounts',val:String(allRows.length)},
-    {label:'Accounts Reduced',val:String(totalReducedCount)},
-    {label:'Active Litigation',val:String(totalLit)},
-    {label:'Arbitration',val:String(totalArb)},
-    {label:'Awaiting Formal',val:String(totalFormal)},
-    {label:'Total Value Reduced',val:totalReduced>0?fmtMV(totalReduced):'—'},
+    {label:'Total Accounts',val:String(allRows.length),color:navy},
+    {label:'Active Litigation',val:String(totalLit),color:totalLit>0?[192,57,43]:navy},
+    {label:'Arbitration',val:String(totalArb),color:navy},
+    {label:'Awaiting Formal',val:String(totalFormal),color:navy},
+    {label:'Total Value Reduced',val:totalRedAll>0?fmtMV(totalRedAll):'—',color:green},
+    {label:'Avg Reduction Rate',val:avgRedPct?avgRedPct+'%':'—',color:navy},
+    {label:'Years Track Record',val:String(folders.length),color:[150,100,10]},
   ];
   var kw=(pageW-margin*2)/kpis.length;
   for(var ki=0;ki<kpis.length;ki++){
     var kx=margin+ki*kw;
-    doc.setFillColor(248,249,251);doc.setDrawColor(220,224,230);doc.rect(kx,y,kw,40,'FD');
-    doc.setTextColor(navy[0],navy[1],navy[2]);doc.setFont('helvetica','bold');doc.setFontSize(14);
-    doc.text(kpis[ki].val,kx+kw/2,y+22,{align:'center'});
-    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(120,120,120);
-    doc.text(kpis[ki].label.toUpperCase(),kx+kw/2,y+33,{align:'center'});
+    var isLast=ki===kpis.length-1;var isGreen=ki===4;
+    doc.setFillColor(isGreen?lightGreen[0]:248,isGreen?lightGreen[1]:249,isGreen?lightGreen[2]:251);
+    doc.setDrawColor(isGreen?40:220,isGreen?167:224,isGreen?69:230);
+    doc.rect(kx,y,kw,42,'FD');
+    doc.setTextColor(kpis[ki].color[0],kpis[ki].color[1],kpis[ki].color[2]);
+    doc.setFont('helvetica','bold');doc.setFontSize(ki>=4?11:14);
+    doc.text(kpis[ki].val,kx+kw/2,y+23,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(120,120,120);
+    doc.text(kpis[ki].label.toUpperCase(),kx+kw/2,y+34,{align:'center'});
   }
-  y+=50;
+  y+=52;
 
   // Two columns: County Breakdown + Top 5 Reductions
   var colW=(pageW-margin*2-14)/2;
@@ -2570,11 +2579,8 @@ function renderClientOverview(cl){
     h+='<div class="cc-sec-hdr" style="margin-bottom:10px">Portfolio Trend</div>';
     h+='<div style="background:#fff;border:1px solid #e0e6ef;border-radius:10px;overflow:hidden;margin-bottom:24px">';
 
-    // Summary sentence at top
     var firstFolder=folders[0];var lastFolder=folders[folders.length-1];
     var firstRows=firstFolder.rows||[];var lastRows=lastFolder.rows||[];
-    var firstPrior=totMV(firstRows,'priorVal');var lastPrior=totMV(lastRows,'priorVal');
-    var portfolioChg=firstPrior>0&&lastPrior>0?((lastPrior-firstPrior)/firstPrior*100).toFixed(1):null;
     var allYearsSavings=0;
     for(var fi2=0;fi2<folders.length;fi2++)allYearsSavings+=totMV(folders[fi2].rows||[],'taxSavings');
 
@@ -2583,7 +2589,6 @@ function renderClientOverview(cl){
     if(allYearsSavings>0)h+='<div style="background:#28a745;color:#fff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px">'+fmtMV(allYearsSavings)+' Total Saved</div>';
     h+='</div>';
 
-    // Trend table
     h+='<div style="overflow-x:auto">';
     h+='<table style="width:100%;border-collapse:collapse;font-size:12px">';
     h+='<thead><tr>';
@@ -2605,8 +2610,6 @@ function renderClientOverview(cl){
       var fReduction=frows.reduce(function(s,r){var b=parseMV(r.priorVal),fv=parseMV(r.finalAppr);return s+(b&&fv&&fv<b?b-fv:0);},0);
       var fSav=totMV(frows,'taxSavings');
       var rowBg=fi3%2===0?'#fff':'#f8f9fb';
-
-      // Accounts % change
       var acctChgHtml='<span style="color:#aaa;font-size:10px">—</span>';
       if(prevAccounts!==null&&prevAccounts>0){
         var acctPct=((fAccounts-prevAccounts)/prevAccounts*100).toFixed(1);
@@ -2614,8 +2617,6 @@ function renderClientOverview(cl){
         acctChgHtml='<span style="color:'+(acctUp?'#155724':'#c0392b')+';font-weight:700">'+(acctUp?'▲':'▼')+' '+Math.abs(acctPct)+'%</span>';
       }
       prevAccounts=fAccounts;
-
-      // YoY change vs previous year prior value
       var yoyHtml='<span style="color:#aaa;font-size:10px">—</span>';
       if(prevPrior!==null&&prevPrior>0&&fPrior>0){
         var pct=((fPrior-prevPrior)/prevPrior*100).toFixed(1);
@@ -2623,7 +2624,6 @@ function renderClientOverview(cl){
         yoyHtml='<span style="color:'+(up?'#c0392b':'#155724')+';font-weight:700">'+(up?'▲':'▼')+' '+Math.abs(pct)+'%</span>';
       }
       prevPrior=fPrior;
-
       h+='<tr style="background:'+rowBg+';border-bottom:1px solid #eee">';
       h+='<td style="padding:10px 12px;font-weight:700;color:var(--navy)">'+esc(fo.year)+'</td>';
       h+='<td style="padding:10px 12px;text-align:right">'+fAccounts+'</td>';
@@ -2636,8 +2636,6 @@ function renderClientOverview(cl){
       h+='<td style="padding:10px 12px;text-align:right;border-left:2px solid #eee">'+yoyHtml+'</td>';
       h+='</tr>';
     }
-
-    // Totals row
     var tPrior=totMV(allRows,'priorVal');
     var tPrelim=totMV(allRows,'prelim');
     var tFinal=totMV(allRows,'finalAppr');
