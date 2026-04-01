@@ -1354,12 +1354,95 @@ function renderDashboard(){
 }
 
 // ── Main Render ────────────────────────────────────────────────────────────────
+function renderClientOverview(cl){
+  var el=document.getElementById('content');
+  var folders=cl.folders||[];
+
+  // Aggregate across all years for this client
+  var allRows=[];
+  for(var fi=0;fi<folders.length;fi++)allRows=allRows.concat(folders[fi].rows||[]);
+  var totalAccounts=allRows.length;
+  var totalSavings=totMV(allRows,'taxSavings');
+  var totalReduced=allRows.filter(function(r){var b=parseMV(r.priorVal),fv=parseMV(r.finalAppr);return b&&fv&&fv<b;}).length;
+  var totalLit=allRows.filter(function(r){return r.status==='Active Litigation';}).length;
+  var totalArb=allRows.filter(function(r){return r.status==='Arbitration';}).length;
+  var totalFormal=allRows.filter(function(r){return r.status==='Awaiting Formal';}).length;
+  var totalTotalRed=allRows.reduce(function(s,r){var b=parseMV(r.priorVal),fv=parseMV(r.finalAppr);return s+(b&&fv&&fv<b?b-fv:0);},0);
+
+  var h='<div class="cc-wrap">';
+
+  // Client hero
+  h+='<div class="cc-hero" style="margin-bottom:20px">';
+  h+='<h1>'+esc(cl.name)+'</h1>';
+  h+='<p>'+esc(cl.firm||'Lane Property Tax Advocates')+' &nbsp;&bull;&nbsp; '+folders.length+' Tax Year'+(folders.length!==1?'s':'')+'</p>';
+  h+='</div>';
+
+  // All-years totals strip
+  h+='<div class="cc-totals">';
+  h+='<div class="cc-total"><div class="ct-val">'+totalAccounts+'</div><div class="ct-lbl">Total Accounts</div></div>';
+  h+='<div class="cc-total green"><div class="ct-val">'+(totalSavings>0?fmtMV(totalSavings):'$0')+'</div><div class="ct-lbl">Total Tax Savings</div></div>';
+  h+='<div class="cc-total green"><div class="ct-val">'+totalReduced+'</div><div class="ct-lbl">Reduced Below Prior Year</div></div>';
+  h+='<div class="cc-total '+(totalLit>0?'red':'')+'"><div class="ct-val">'+totalLit+'</div><div class="ct-lbl">Active Litigation</div></div>';
+  h+='</div>';
+
+  if(totalArb>0||totalFormal>0){
+    h+='<div style="display:flex;gap:8px;margin-bottom:20px">';
+    if(totalArb>0)h+='<div style="background:#CCE5FF;border:1px solid #004085;border-radius:6px;padding:8px 14px;font-size:11px;font-weight:600;color:#004085">&#9632; '+totalArb+' Arbitration</div>';
+    if(totalFormal>0)h+='<div style="background:#EAD5F5;border:1px solid #9B59B6;border-radius:6px;padding:8px 14px;font-size:11px;font-weight:600;color:#6c3483">&#9632; '+totalFormal+' Awaiting Formal</div>';
+    if(totalTotalRed>0)h+='<div style="background:#D4EDDA;border:1px solid #28A745;border-radius:6px;padding:8px 14px;font-size:11px;font-weight:600;color:#155724">&#8595; '+fmtMV(totalTotalRed)+' Total Value Reduced</div>';
+    h+='</div>';
+  }
+
+  // Year cards
+  h+='<div class="cc-sec-hdr">Tax Years</div>';
+  h+='<div class="cc-grid">';
+
+  for(var fi=folders.length-1;fi>=0;fi--){
+    var f=folders[fi];var rows=f.rows||[];
+    var fSavings=totMV(rows,'taxSavings');
+    var fReduced=rows.filter(function(r){var b=parseMV(r.priorVal),fv=parseMV(r.finalAppr);return b&&fv&&fv<b;}).length;
+    var fLit=rows.filter(function(r){return r.status==='Active Litigation';}).length;
+    var fArb=rows.filter(function(r){return r.status==='Arbitration';}).length;
+    var fFormal=rows.filter(function(r){return r.status==='Awaiting Formal';}).length;
+    var fPrelim=totMV(rows,'prelim');var fPrior=totMV(rows,'priorVal');
+    var fChg=fPrior>0&&fPrelim>0?((fPrelim-fPrior)/fPrior*100).toFixed(1):null;
+
+    h+='<div class="cc-card" onclick="selectFolder(\''+cl.id+'\',\''+f.id+'\')">';
+    h+='<div class="cc-card-hdr"><h3>'+esc(f.year)+' Tax Year</h3>';
+    if(fChg!==null)h+='<span class="cc-yr" style="background:'+(parseFloat(fChg)>0?'#dc3545':'#28a745')+'">'+( parseFloat(fChg)>0?'+':'')+fChg+'%</span>';
+    h+='</div>';
+    h+='<div class="cc-card-body">';
+    h+='<div class="cc-savings">'+(fSavings>0?fmtMV(fSavings):'$0')+'<span>Tax Savings</span></div>';
+    h+='<div class="cc-stats">';
+    h+='<div class="cc-stat"><div class="sv">'+rows.length+'</div><div class="sl">Accounts</div></div>';
+    h+='<div class="cc-stat"><div class="sv green">'+fReduced+'</div><div class="sl">Reduced</div></div>';
+    h+='<div class="cc-stat"><div class="sv '+(fLit>0?'red':'')+'">'+fLit+'</div><div class="sl">Litigation</div></div>';
+    h+='</div></div>';
+    h+='<div class="cc-card-ftr">';
+    h+='<span>&#128193; Click to open ledger</span>';
+    if(fArb>0)h+='<span style="color:#004085">&#9632; '+fArb+' Arb</span>';
+    if(fFormal>0)h+='<span style="color:#9B59B6">&#9632; '+fFormal+' Formal</span>';
+    h+='</div></div>';
+  }
+
+  h+='</div>';
+
+  // Add year button
+  h+='<div style="margin-top:16px">';
+  h+='<button class="btn btn-navy btn-sm" onclick="requireUnlock(function(){openNewFolderModal(\''+cl.id+'\')})">+ Add Year / Folder</button>';
+  h+='</div>';
+
+  h+='</div>';
+  el.innerHTML=h;
+}
+
 function renderMain(){
   var el=document.getElementById('content');
   var f=getActiveFolder();var cl=getClient(activeClientId);
   if(!f){
     if(!activeClientId){renderDashboard();return;}
-    el.innerHTML='<div class="empty-state"><h2>'+esc(cl?cl.name:'')+'</h2><p>Click a year folder in the sidebar, or click <b>+ add year / folder</b>.</p></div>';
+    if(cl){renderClientOverview(cl);return;}
+    el.innerHTML='<div class="empty-state"><h2>No client selected</h2><p>Click <b>+ New Client</b> in the sidebar.</p></div>';
     return;
   }
   el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
