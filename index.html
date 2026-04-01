@@ -1978,15 +1978,21 @@ function buildJsPDF(cl,folders,reportTitle){
   doc.text('Tax Year '+yearRange+' • Prepared by Lane Property Tax Advocates',margin+14,y+38);
   y+=58;
 
-  // Savings banner
-  if(totalSavings>0){
+  // Total Market Value Reductions banner
+  var totalMktRed=0;
+  for(var fib=0;fib<folders.length;fib++){
+    var frb=folders[fib].rows||[];
+    var fp=totMV(frb,'prelim');var ff=totMV(frb,'finalAppr');
+    if(fp>0&&ff>0)totalMktRed+=(fp-ff);
+  }
+  if(totalMktRed>0){
     doc.setFillColor(lightGreen[0],lightGreen[1],lightGreen[2]);
     doc.setDrawColor(40,167,69);
     doc.roundedRect(margin,y,pageW-margin*2,44,4,4,'FD');
     doc.setTextColor(green[0],green[1],green[2]);
     doc.setFont('helvetica','bold');doc.setFontSize(9);
-    doc.text('TOTAL TAX SAVINGS',pageW/2,y+14,{align:'center'});
-    doc.setFontSize(22);doc.text(fmtMV(totalSavings),pageW/2,y+34,{align:'center'});
+    doc.text('TOTAL MARKET VALUE REDUCTIONS',pageW/2,y+14,{align:'center'});
+    doc.setFontSize(22);doc.text(fmtMV(totalMktRed),pageW/2,y+34,{align:'center'});
     y+=54;
   }
 
@@ -2000,7 +2006,7 @@ function buildJsPDF(cl,folders,reportTitle){
     {label:'Active Litigation',val:String(totalLit),color:totalLit>0?[192,57,43]:navy},
     {label:'Arbitration',val:String(totalArb),color:navy},
     {label:'Awaiting Formal',val:String(totalFormal),color:navy},
-    {label:'Total Value Reduced',val:totalRedAll>0?fmtMV(totalRedAll):'—',color:green},
+    {label:'Total Mkt Val Reductions',val:totalRedAll>0?fmtMV(totalRedAll):'—',color:green},
     {label:'Avg Reduction Rate',val:avgRedPct?avgRedPct+'%':'—',color:navy},
     {label:'Years Track Record',val:String(folders.length),color:[150,100,10]},
   ];
