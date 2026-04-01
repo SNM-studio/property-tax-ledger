@@ -102,6 +102,11 @@ tfoot td.tl{text-align:left}
 .empty-state{text-align:center;padding:60px 20px;color:#888}
 .empty-state h2{font-size:18px;margin-bottom:8px;color:#aaa}
 .yr-badge{display:inline-block;background:var(--gold);color:#000;font-size:9px;font-weight:700;border-radius:3px;padding:1px 5px;margin-left:4px;vertical-align:middle}
+.pdf-drop{position:relative;display:inline-block}
+.pdf-menu{position:absolute;top:100%;right:0;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:50;min-width:200px;overflow:hidden;margin-top:3px}
+.pdf-menu button{display:block;width:100%;text-align:left;padding:10px 14px;font-size:12px;font-weight:600;border:none;background:#fff;cursor:pointer;color:#002147}
+.pdf-menu button:hover{background:#f0f4f8}
+.pdf-menu .pdf-divider{height:1px;background:#eee;margin:2px 0}
 .lock-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(0,0,0,0.2);border-top:1px solid rgba(255,255,255,0.08)}
 .lock-status{font-size:10px;font-weight:700;letter-spacing:.4px;display:flex;align-items:center;gap:5px}
 .lock-icon{font-size:13px}
@@ -755,108 +760,214 @@ function exportExcel(){
   var f=getActiveFolder();
   if(!cl||!f){alert('Please select a year folder first.');return;}
 
-  // Only export the currently selected year
   var rows=f.rows||[];var L=f.labels;
-  var allRows=rows;
+  var NC=16;
+  var ledgerHdrs=['#','CAD','Account #','Address','CAD Owner/Assessee',
+    L.prior,L.prelim,L.prelimAppr||'Prelim Appr Value',L.finalAppr,L.finalMkt,
+    'Market Reduction *','% Change *','Tax Rate','Tax Savings *','Status','Notes'];
+
+  var html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+  html+='<head><meta charset="UTF-8"><style>td,th{font-family:Arial;font-size:9pt;}</style>';
+  html+='<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>'+f.year+' Ledger</x:Name><x:WorksheetOptions><x:FreezePanes/><x:FrozenNoSplit/><x:SplitHorizontal>1</x:SplitHorizontal><x:TopRowBottomPane>1</x:TopRowBottomPane><x:ActivePane>2</x:ActivePane></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->';
+  html+='</head><body><table>';
+
+  // Column header row (frozen)
+  html+='<tr>';
+  for(var hi=0;hi<ledgerHdrs.length;hi++)html+='<td style="background:#002147;color:#fff;font-weight:bold;font-size:9pt;text-align:center;padding:7px 6px;border-bottom:2px solid #C9A84C;white-space:nowrap;">'+esc(ledgerHdrs[hi])+'</td>';
+  html+='</tr>';
+
+  // Data rows
+  var exportRows=sortedRows(rows);
+  for(var ri=0;ri<exportRows.length;ri++){
+    var r=exportRows[ri];
+    var bg=STATUS_FILLS[r.status]||(ri%2===0?'#FFFFFF':'#EEF4FB');
+    var pv=parseFloat(r.pctChange)||0;
+    var pctColor=pv<0?'#155724':pv>0?'#721c24':'#444';
+    var redAmt=parseMV(r.mktRed)||0;var savAmt=parseMV(r.taxSavings)||0;
+    html+='<tr>';
+    html+='<td style="background:'+bg+';color:#888;font-size:9pt;text-align:center;padding:5px 6px;border:1px solid #eee;">'+(ri+1)+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+(r.cad||'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;mso-number-format:\'@\';">'+esc(String(r.account||''))+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.address||'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.owner||'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.priorVal)?fmtMV(parseMV(r.priorVal)):'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.prelim)?fmtMV(parseMV(r.prelim)):'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.prelimAppr)?fmtMV(parseMV(r.prelimAppr)):'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.finalAppr)?fmtMV(parseMV(r.finalAppr)):'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.finalMkt)?fmtMV(parseMV(r.finalMkt)):'')+'</td>';
+    html+='<td style="background:'+bg+';color:'+(redAmt>0?'#155724':'#444')+';font-weight:'+(redAmt>0?'bold':'normal')+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(redAmt>0?fmtMV(redAmt):'')+'</td>';
+    html+='<td style="background:'+bg+';color:'+pctColor+';font-weight:bold;font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(r.pctChange||'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(r.taxRate||'')+'</td>';
+    html+='<td style="background:'+bg+';color:'+(savAmt>0?'#155724':'#444')+';font-weight:'+(savAmt>0?'bold':'normal')+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(savAmt>0?fmtMV(savAmt):'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.status||'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.notes||'')+'</td>';
+    html+='</tr>';
+  }
+
+  // Totals row
+  html+='<tr>';
+  html+='<td style="background:#002147;color:#fff;font-weight:bold;font-size:9pt;padding:7px 6px;">TOTALS</td>';
+  html+='<td style="background:#002147;padding:7px 6px;"></td>';
+  html+='<td style="background:#002147;color:#fff;font-size:9pt;text-align:right;padding:7px 6px;">'+exportRows.length+' accounts</td>';
+  for(var ti=0;ti<2;ti++)html+='<td style="background:#002147;padding:7px 6px;"></td>';
+  var totFs=['priorVal','prelim','prelimAppr','finalAppr','finalMkt','mktRed'];
+  for(var ti=0;ti<totFs.length;ti++){var t=totMV(rows,totFs[ti]);html+='<td style="background:#002147;color:#fff;font-weight:bold;font-size:9pt;text-align:right;padding:7px 6px;">'+(t>0?fmtMV(t):'')+'</td>';}
+  html+='<td style="background:#002147;padding:7px 6px;"></td>';
+  html+='<td style="background:#002147;padding:7px 6px;"></td>';
+  var ts2=totMV(rows,'taxSavings');
+  html+='<td style="background:#002147;color:#a8d5b5;font-weight:bold;font-size:9pt;text-align:right;padding:7px 6px;">'+(ts2>0?fmtMV(ts2):'')+'</td>';
+  html+='<td style="background:#002147;padding:7px 6px;"></td>';
+  html+='<td style="background:#002147;padding:7px 6px;"></td>';
+  html+='</tr></table></body></html>';
+
+  var blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download=cl.name+' - '+f.year+' Ledger.xls';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
+
+
+// ── PDF Export ─────────────────────────────────────────────────────────────────
+function showPdfMenu(){
+  var menu=document.getElementById('pdfMenu');
+  if(menu.style.display==='none'||!menu.style.display){menu.style.display='block';}
+  else{menu.style.display='none';}
+}
+function closePdfMenu(){
+  var menu=document.getElementById('pdfMenu');
+  if(menu)menu.style.display='none';
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#pdfDropWrap'))closePdfMenu();
+});
+
+function buildExecSummaryHtml(cl, folders){
+  var allRows=[];
+  for(var fi=0;fi<folders.length;fi++)allRows=allRows.concat(folders[fi].rows||[]);
   var allReduced=countReduced(allRows);
   var allTotalRed=allRows.reduce(function(s,r){var b=parseMV(r.priorVal),fv=parseMV(r.finalAppr);return s+(b&&fv&&fv<b?b-fv:0);},0);
   var allSavings=totMV(allRows,'taxSavings');
   var allLit=allRows.filter(function(r){return r.status==='Active Litigation';}).length;
   var allArb=allRows.filter(function(r){return r.status==='Arbitration';}).length;
+  var isSingle=folders.length===1;
+  var yearLabel=isSingle?folders[0].year:'All Years';
 
-  var html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
-  html+='<head><meta charset="UTF-8"><style>td,th{font-family:Arial;font-size:9pt;}</style>';
-  html+='<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>'+f.year+' Ledger</x:Name><x:WorksheetOptions><x:FreezePanes/><x:FrozenNoSplit/><x:SplitHorizontal>1</x:SplitHorizontal><x:TopRowBottomPane>1</x:TopRowBottomPane><x:ActivePane>2</x:ActivePane></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->';
-  html+='</head><body>';
+  var h='<!DOCTYPE html><html><head><meta charset="UTF-8"/><style>';
+  h+='*{box-sizing:border-box;margin:0;padding:0}';
+  h+='body{font-family:Arial,sans-serif;font-size:11px;color:#222;padding:24px}';
+  h+='.hdr{background:#002147;color:#C9A84C;font-weight:bold;font-size:18px;padding:14px 16px;border-bottom:4px solid #C9A84C;margin-bottom:4px}';
+  h+='.sub{background:#EEF2F7;color:#666;font-size:9px;padding:5px 16px;margin-bottom:14px}';
+  h+='.banner{background:#D4EDDA;color:#155724;font-weight:bold;font-size:20px;text-align:center;padding:16px;border:3px solid #28A745;margin-bottom:14px;border-radius:5px}';
+  h+='.sec{background:#002147;color:#fff;font-weight:bold;font-size:11px;padding:6px 10px;border-bottom:2px solid #C9A84C;margin-bottom:0}';
+  h+='table{border-collapse:collapse;width:100%;margin-bottom:14px}';
+  h+='th{background:#DCE8F4;color:#002147;font-weight:bold;font-size:9px;text-align:center;padding:5px 6px;border:1px solid #ccc}';
+  h+='td{font-size:10px;padding:5px 6px;border:1px solid #eee}';
+  h+='.kpi-val{background:#F0F6FF;color:#002147;font-weight:bold;font-size:16px;text-align:center;padding:9px 6px;border:2px solid #ddd}';
+  h+='.kpi-grn{background:#D4EDDA;color:#155724;font-weight:bold;font-size:16px;text-align:center;padding:9px 6px;border:2px solid #28A745}';
+  h+='.grn{color:#155724;font-weight:bold}';
+  h+='.navy{background:#002147;color:#fff;font-weight:bold}';
+  h+='.navy-grn{background:#002147;color:#a8d5b5;font-weight:bold}';
+  h+='.even{background:#fff}.odd{background:#EEF4FB}';
+  h+='.tr{text-align:right}.tc{text-align:center}';
+  h+='@media print{body{padding:12px}@page{margin:1cm}}';
+  h+='</style></head><body>';
 
-  // ── Executive Summary ──────────────────────────────────────────────────────
-  html+='<table>';
-  html+='<tr><td colspan="9" style="background:#002147;color:#C9A84C;font-weight:bold;font-size:16pt;padding:14px 12px;border-bottom:4px solid #C9A84C;">'+esc(cl.name)+' &mdash; '+f.year+' Property Tax Summary</td></tr>';
-  html+='<tr><td colspan="9" style="background:#EEF2F7;color:#666;font-size:8pt;padding:5px 12px;">Prepared by Lane Property Tax Advocates &nbsp;|&nbsp; Tax Year '+f.year+' &nbsp;|&nbsp; Confidential</td></tr>';
-  html+='<tr><td colspan="9" style="height:12px;"></td></tr>';
-  html+='<tr><td colspan="9" style="background:#D4EDDA;color:#155724;font-weight:bold;font-size:22pt;text-align:center;padding:18px;border:3px solid #28A745;">'+f.year+' TOTAL TAX SAVINGS: '+(allSavings>0?fmtMV(allSavings):'$0')+'</td></tr>';
-  html+='<tr><td colspan="9" style="height:14px;"></td></tr>';
-  html+='<tr><td colspan="9" style="background:#002147;color:#fff;font-weight:bold;font-size:11pt;padding:7px 12px;border-bottom:2px solid #C9A84C;">'+f.year+' Portfolio Summary</td></tr>';
-  var kl=['Total Accounts','Accts Reduced','Litigation','Arbitration','Total Value Reduced','Total Tax Savings','Tax Year'];
-  html+='<tr>';
-  for(var k=0;k<kl.length;k++)html+='<td style="background:#DCE8F4;color:#002147;font-weight:bold;font-size:8pt;text-align:center;padding:5px 8px;border:1px solid #ccc;">'+kl[k]+'</td>';
-  html+='<td colspan="2"></td></tr>';
-  html+='<tr>';
-  var kv=[allRows.length,allReduced,allLit,allArb,allTotalRed>0?fmtMV(allTotalRed):'--',allSavings>0?fmtMV(allSavings):'--',f.year];
-  for(var k=0;k<kv.length;k++){var isH=(k===4||k===5);
-    html+='<td style="background:'+(isH?'#D4EDDA':'#F0F6FF')+';color:'+(isH?'#155724':'#002147')+';font-weight:bold;font-size:14pt;text-align:center;padding:10px 8px;border:2px solid '+(isH?'#28A745':'#ddd')+';">'+kv[k]+'</td>';}
-  html+='<td colspan="2"></td></tr>';
-  html+='</tr></table>';
+  h+='<div class="hdr">'+esc(cl.name)+' &mdash; Property Tax Executive Summary &mdash; '+yearLabel+'</div>';
+  h+='<div class="sub">Prepared by Lane Property Tax Advocates &nbsp;|&nbsp; Confidential &nbsp;|&nbsp; All values reflect certified appraisal data</div>';
+  h+='<div class="banner">TOTAL TAX SAVINGS &mdash; '+yearLabel.toUpperCase()+': '+(allSavings>0?fmtMV(allSavings):'$0')+'</div>';
 
-  // ── Page break then ledger ─────────────────────────────────────────────────
-  {
-    var NC=16;
-    var ledgerHdrs=['#','CAD','Account #','Address','CAD Owner/Assessee',
-      L.prior,L.prelim,L.prelimAppr||'Prelim Appr Value',L.finalAppr,L.finalMkt,
-      'Market Reduction *','% Change *','Tax Rate','Tax Savings *','Status','Notes'];
+  h+='<div class="sec">'+yearLabel+' Portfolio Summary</div>';
+  h+='<table><tr>';
+  var kl=['Total Accounts','Accts Reduced','Litigation','Arbitration','Total Value Reduced','Total Tax Savings'];
+  for(var k=0;k<kl.length;k++)h+='<th>'+kl[k]+'</th>';
+  h+='</tr><tr>';
+  var kv=[allRows.length,allReduced,allLit,allArb,allTotalRed>0?fmtMV(allTotalRed):'--',allSavings>0?fmtMV(allSavings):'--'];
+  for(var k=0;k<kv.length;k++)h+='<td class="'+(k>=4?'kpi-grn':'kpi-val')+'">'+kv[k]+'</td>';
+  h+='</tr></table>';
 
-    html+='<br style="page-break-before:always"/>';
-
-    // Info rows above the frozen table (not part of frozen table)
-    html+='<table>';
-    html+='<tr><td colspan="'+NC+'" style="background:#002147;color:#C9A84C;font-weight:bold;font-size:12pt;padding:10px 12px;border-bottom:3px solid #C9A84C;">'+esc(cl.name)+' &mdash; '+f.year+' Account Ledger</td></tr>';
-    html+='<tr><td colspan="'+NC+'" style="background:#EEF2F7;color:#666;font-size:8pt;padding:4px 12px;">* Auto-calculated &nbsp;|&nbsp; Yellow=Litigation &nbsp; Blue=Arbitration &nbsp; Purple=Awaiting Formal &nbsp; Green=Reduced Below Prior Year</td></tr>';
-    html+='</table>';
-
-    // Separate frozen table — column headers are row 1, data follows
-    html+='<table>';
-    // Column header row — this is the row that gets frozen
-    html+='<tr>';
-    for(var hi=0;hi<ledgerHdrs.length;hi++)html+='<td style="background:#002147;color:#fff;font-weight:bold;font-size:9pt;text-align:center;padding:7px 6px;border-bottom:2px solid #C9A84C;white-space:nowrap;">'+esc(ledgerHdrs[hi])+'</td>';
-    html+='</tr>';
-    var exportRows=sortedRows(rows);
-    for(var ri=0;ri<exportRows.length;ri++){
-      var r=exportRows[ri];
-      var bg=STATUS_FILLS[r.status]||(ri%2===0?'#FFFFFF':'#EEF4FB');
-      var pv=parseFloat(r.pctChange)||0;
-      var pctColor=pv<0?'#155724':pv>0?'#721c24':'#444';
-      var redAmt=parseMV(r.mktRed)||0;var savAmt=parseMV(r.taxSavings)||0;
-      html+='<tr>';
-      html+='<td style="background:'+bg+';color:#888;font-size:9pt;text-align:center;padding:5px 6px;border:1px solid #eee;">'+(ri+1)+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+(r.cad||'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;mso-number-format:\'@\';">'+esc(String(r.account||''))+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.address||'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.owner||'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.priorVal)?fmtMV(parseMV(r.priorVal)):'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.prelim)?fmtMV(parseMV(r.prelim)):'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.prelimAppr)?fmtMV(parseMV(r.prelimAppr)):'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.finalAppr)?fmtMV(parseMV(r.finalAppr)):'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.finalMkt)?fmtMV(parseMV(r.finalMkt)):'')+'</td>';
-      html+='<td style="background:'+bg+';color:'+(redAmt>0?'#155724':'#444')+';font-weight:'+(redAmt>0?'bold':'normal')+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(redAmt>0?fmtMV(redAmt):'')+'</td>';
-      html+='<td style="background:'+bg+';color:'+pctColor+';font-weight:bold;font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(r.pctChange||'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(r.taxRate||'')+'</td>';
-      html+='<td style="background:'+bg+';color:'+(savAmt>0?'#155724':'#444')+';font-weight:'+(savAmt>0?'bold':'normal')+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(savAmt>0?fmtMV(savAmt):'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.status||'')+'</td>';
-      html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.notes||'')+'</td>';
-      html+='</tr>';
+  // Year breakdown (only if multiple years)
+  if(!isSingle){
+    h+='<div class="sec">Year-by-Year Breakdown</div>';
+    h+='<table><tr><th style="text-align:left">Tax Year</th><th>Accounts</th><th>Reduced</th><th>Litigation</th><th>Arbitration</th><th>Prior Value</th><th>Prelim Value</th><th>Value Reduced</th><th>Tax Savings</th></tr>';
+    for(var fi=0;fi<folders.length;fi++){
+      var ff=folders[fi];var fr=ff.rows||[];
+      var red=countReduced(fr);
+      var tred=fr.reduce(function(s,r){var b=parseMV(r.priorVal),fv=parseMV(r.finalAppr);return s+(b&&fv&&fv<b?b-fv:0);},0);
+      var sav=totMV(fr,'taxSavings');
+      var lit2=fr.filter(function(r){return r.status==='Active Litigation';}).length;
+      var arb2=fr.filter(function(r){return r.status==='Arbitration';}).length;
+      var bg=fi%2===0?'even':'odd';
+      h+='<tr class="'+bg+'">';
+      h+='<td style="font-weight:bold;color:#002147">'+ff.year+'</td>';
+      h+='<td class="tc">'+fr.length+'</td><td class="tc">'+red+'</td><td class="tc">'+lit2+'</td><td class="tc">'+arb2+'</td>';
+      h+='<td class="tr">'+fmtMV(totMV(fr,'priorVal'))+'</td>';
+      h+='<td class="tr">'+fmtMV(totMV(fr,'prelim'))+'</td>';
+      h+='<td class="tr grn">'+(tred>0?fmtMV(tred):'--')+'</td>';
+      h+='<td class="tr grn">'+(sav>0?fmtMV(sav):'--')+'</td>';
+      h+='</tr>';
     }
-    // Totals row
-    html+='<tr><td style="background:#002147;color:#fff;font-weight:bold;font-size:9pt;padding:7px 6px;">TOTALS</td>';
-    html+='<td style="background:#002147;padding:7px 6px;"></td>';
-    html+='<td style="background:#002147;color:#fff;font-size:9pt;text-align:right;padding:7px 6px;">'+exportRows.length+' accounts</td>';
-    for(var ti=0;ti<2;ti++)html+='<td style="background:#002147;padding:7px 6px;"></td>';
-    var totFs=['priorVal','prelim','prelimAppr','finalAppr','finalMkt','mktRed'];
-    for(var ti=0;ti<totFs.length;ti++){var t=totMV(rows,totFs[ti]);html+='<td style="background:#002147;color:#fff;font-weight:bold;font-size:9pt;text-align:right;padding:7px 6px;">'+(t>0?fmtMV(t):'')+'</td>';}
-    html+='<td style="background:#002147;padding:7px 6px;"></td>';
-    html+='<td style="background:#002147;padding:7px 6px;"></td>';
-    var ts2=totMV(rows,'taxSavings');
-    html+='<td style="background:#002147;color:#a8d5b5;font-weight:bold;font-size:9pt;text-align:right;padding:7px 6px;">'+(ts2>0?fmtMV(ts2):'')+'</td>';
-    html+='<td style="background:#002147;padding:7px 6px;"></td>';
-    html+='<td style="background:#002147;padding:7px 6px;"></td>';
-    html+='</tr></table>';
+    h+='<tr><td class="navy">TOTAL</td>';
+    h+='<td class="navy tc">'+allRows.length+'</td><td class="navy tc">'+allReduced+'</td>';
+    h+='<td class="navy tc">'+allLit+'</td><td class="navy tc">'+allArb+'</td>';
+    h+='<td class="navy tr">'+fmtMV(totMV(allRows,'priorVal'))+'</td>';
+    h+='<td class="navy tr">'+fmtMV(totMV(allRows,'prelim'))+'</td>';
+    h+='<td class="navy-grn tr">'+(allTotalRed>0?fmtMV(allTotalRed):'--')+'</td>';
+    h+='<td class="navy-grn tr">'+(allSavings>0?fmtMV(allSavings):'--')+'</td>';
+    h+='</tr></table>';
   }
 
-  html+='</body></html>';
+  // Per-year county breakdown + top reductions
+  for(var fi=0;fi<folders.length;fi++){
+    var ff=folders[fi];var fr=ff.rows||[];var L=ff.labels;
+    h+='<div class="sec">'+ff.year+' Accounts by County</div>';
+    h+='<table><tr><th style="text-align:left">County</th><th>Accounts</th><th>% Portfolio</th><th style="text-align:right">'+esc(L.prior)+'</th></tr>';
+    var CNTS=['Harris','Brazoria','Montgomery','Fort Bend','Galveston','San Jacinto','Other'];
+    var ci2=0;
+    for(var ci=0;ci<CNTS.length;ci++){
+      var co=CNTS[ci];var cr=fr.filter(function(r){return r.cad===co;});
+      if(!cr.length)continue;
+      h+='<tr class="'+(ci2%2===0?'even':'odd')+'"><td>'+co+'</td><td class="tc">'+cr.length+'</td>';
+      h+='<td class="tc">'+(cr.length/fr.length*100).toFixed(1)+'%</td>';
+      h+='<td class="tr">'+fmtMV(totMV(cr,'priorVal'))+'</td></tr>';
+      ci2++;
+    }
+    h+='<tr><td class="navy">TOTAL</td><td class="navy tc">'+fr.length+'</td><td class="navy tc">100%</td>';
+    h+='<td class="navy tr">'+fmtMV(totMV(fr,'priorVal'))+'</td></tr></table>';
 
-  var blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');a.href=url;a.download=cl.name+' - '+f.year+' Property Tax Report.xls';
-  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+    var topRed=fr.map(function(r){return{addr:r.address||'',owner:r.owner||'',prior:parseMV(r.priorVal)||0,finalAppr:parseMV(r.finalAppr)||0,red:(parseMV(r.priorVal)||0)-(parseMV(r.finalAppr)||0)};})
+      .filter(function(r){return r.red>0;}).sort(function(a,b){return b.red-a.red;}).slice(0,10);
+    if(topRed.length){
+      h+='<div class="sec">'+ff.year+' Top Reductions</div>';
+      h+='<table><tr><th style="text-align:left">Address</th><th style="text-align:left">Owner</th><th>Prior Value</th><th>Final Appr</th><th>$ Reduced</th></tr>';
+      for(var ri=0;ri<topRed.length;ri++){
+        var tr3=topRed[ri];
+        h+='<tr class="'+(ri%2===0?'even':'odd')+'">';
+        h+='<td>'+esc(tr3.addr)+'</td><td>'+esc(tr3.owner)+'</td>';
+        h+='<td class="tr">'+fmtMV(tr3.prior)+'</td>';
+        h+='<td class="tr">'+fmtMV(tr3.finalAppr)+'</td>';
+        h+='<td class="tr grn">'+fmtMV(tr3.red)+'</td></tr>';
+      }
+      h+='</table>';
+    }
+  }
+  h+='</body></html>';
+  return h;
+}
+
+function exportPDF(mode){
+  closePdfMenu();
+  var cl=getClient(activeClientId);
+  if(!cl||!cl.folders||!cl.folders.length){alert('Please select a client first.');return;}
+  var folders=mode==='year'?[getActiveFolder()]:(cl.folders||[]);
+  if(!folders[0]){alert('Please select a year folder first.');return;}
+  var yearLabel=mode==='year'?folders[0].year:'All Years';
+  var html=buildExecSummaryHtml(cl,folders);
+  var w=window.open('','_blank','width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(function(){w.print();},600);
 }
 
 
@@ -999,6 +1110,13 @@ function renderMain(){
     +'<span style="font-size:12px;color:#888;margin-left:8px">'+esc(cl?cl.firm||'':'')+'</span></div>'
     +'<div style="display:flex;gap:6px">'
     +'<button class="btn btn-sm btn-navy" onclick="exportExcel()">&#8595; Export Excel</button>'
+    +'<div class="pdf-drop" id="pdfDropWrap">'
+    +'<button class="btn btn-sm" style="background:#8e44ad;color:#fff" onclick="showPdfMenu()">&#128196; Export PDF &#9662;</button>'
+    +'<div class="pdf-menu" id="pdfMenu" style="display:none">'
+    +'<button onclick="exportPDF(\'year\')">&#128196; Current Year Summary</button>'
+    +'<div class="pdf-divider"></div>'
+    +'<button onclick="exportPDF(\'all\')">&#128196; All Years Summary</button>'
+    +'</div></div>'
     +'<button class="btn btn-sm" style="background:#dce3ec;color:var(--navy)" onclick="requireUnlock(function(){editFolderModal(\''+activeClientId+'\',\''+activeFolderId+'\')})">&#9881; Edit Folder</button>'
     +'<button class="btn btn-sm" style="background:#eee;color:#333" onclick="requireUnlock(function(){editClientModal(\''+activeClientId+'\')})">&#9881; Edit Client</button>'
     +'</div></div>'
