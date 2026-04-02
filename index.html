@@ -68,7 +68,7 @@ body{font-family:Arial,sans-serif;font-size:13px;background:#f0f2f5;color:#222}
 .btn-navy:hover{opacity:.9}
 .btn-sm{padding:5px 11px;font-size:11px}
 .tbl-wrap{overflow-x:auto;border:1px solid #ddd;border-radius:6px;background:#fff;max-height:calc(100vh - 310px);overflow-y:auto}
-table{border-collapse:collapse;font-size:11.5px;width:100%}
+table{border-collapse:collapse;font-size:11.5px;width:max-content;min-width:100%}
 thead th{background:var(--navy);color:#fff;padding:7px 7px;font-weight:500;text-align:left;white-space:nowrap;position:sticky;top:0;z-index:2;border-right:1px solid #1a3a5c;cursor:pointer;user-select:none;overflow:hidden}
 thead th:hover{background:#003366}
 thead th.calc-col{background:#003a6e;font-style:italic}
@@ -82,7 +82,7 @@ tbody tr.completed{}
 tbody td{padding:3px 5px;vertical-align:middle}
 tbody td input,tbody td select{border:none;background:transparent;font-size:11.5px;font-family:Arial,sans-serif;color:#222;width:100%;padding:2px 3px;outline:none}
 tbody td input:focus,tbody td select:focus{background:#fffbe6;border-radius:3px}
-.num-cell{text-align:center;color:#aaa;font-size:10px;min-width:52px;width:52px;max-width:52px;white-space:nowrap;overflow:visible}
+.num-cell{text-align:center;color:#aaa;font-size:10px;white-space:nowrap;padding:3px 8px}
 .calc-cell{background:rgba(0,33,71,0.03)!important}
 tfoot td{background:var(--navy);color:#fff;font-weight:700;padding:7px 7px;font-size:11.5px;text-align:right;white-space:nowrap}
 tfoot td.tl{text-align:left}
@@ -2270,7 +2270,7 @@ function renderKPIs(){
 // ── Fields ─────────────────────────────────────────────────────────────────────
 function getFields(labels){
   var base=[
-    {k:'_rownum',label:'#',w:52,mv:false,auto:true},
+    {k:'_rownum',label:'#',w:38,mv:false,auto:true},
     {k:'cad',label:'CAD',w:95,mv:false},
     {k:'account',label:'Account #',w:125,mv:false},
     {k:'address',label:'Address',w:175,mv:false},
@@ -2323,7 +2323,7 @@ function renderTable(){
     tbody+='<tr data-id="'+r.id+'" class="'+cls+'">';
     for(var fi=0;fi<vf.length;fi++){
       var fld=vf[fi];
-      if(fld.k==='_rownum'){tbody+='<td class="num-cell" style="white-space:nowrap;width:52px">'+(ri+1)+'</td>';}
+      if(fld.k==='_rownum'){tbody+='<td class="num-cell">'+(ri+1)+'</td>';}
       else if(fld.k==='cad'){
         var allCads=(f.rows||[]).reduce(function(acc,row){if(row.cad&&acc.indexOf(row.cad)<0)acc.push(row.cad);return acc;},[]).sort();
         if(r.cad&&allCads.indexOf(r.cad)<0)allCads.push(r.cad);
