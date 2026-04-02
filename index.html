@@ -1737,8 +1737,8 @@ function exportExcel(){
   // Row 1: Professional color legend coordinator (frozen with headers)
   html+='<tr style="height:20px;">';
   html+='<td colspan="3" style="background:#002147;color:#C9A84C;font-size:8pt;font-weight:bold;padding:4px 8px;letter-spacing:.5px;">ROW COLOR KEY</td>';
-  html+='<td colspan="2" style="background:#FFF3CD;border:1.5px solid #FFC107;font-size:8pt;font-weight:600;color:#333;text-align:center;padding:3px 6px;">&#9632; Active Litigation</td>';
-  html+='<td colspan="2" style="background:#CCE5FF;border:1.5px solid #004085;font-size:8pt;font-weight:600;color:#333;text-align:center;padding:3px 6px;">&#9632; Arbitration</td>';
+  html+='<td colspan="3" style="background:#FFF3CD;border:1.5px solid #FFC107;font-size:8pt;font-weight:600;color:#333;text-align:center;padding:3px 6px;">&#9632; Active Litigation</td>';
+  html+='<td colspan="3" style="background:#CCE5FF;border:1.5px solid #004085;font-size:8pt;font-weight:600;color:#333;text-align:center;padding:3px 6px;">&#9632; Arbitration</td>';
   html+='<td colspan="3" style="background:#D4EDDA;border:1.5px solid #28A745;font-size:8pt;font-weight:600;color:#333;text-align:center;padding:3px 6px;">&#9632; Reduced Below Last Year</td>';
   html+='<td colspan="3" style="background:#EAD5F5;border:1.5px solid #9B59B6;font-size:8pt;font-weight:600;color:#333;text-align:center;padding:3px 6px;">&#9632; Awaiting Formal</td>';
   html+='</tr>';
@@ -1760,7 +1760,7 @@ function exportExcel(){
     html+='<tr>';
     html+='<td style="background:'+bg+';color:#888;font-size:9pt;text-align:center;padding:5px 6px;border:1px solid #eee;">'+(ri+1)+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+(r.cad||'')+'</td>';
-    html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;mso-number-format:\'@\';">'+esc(String(r.account||''))+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;mso-number-format:&apos;@&apos;;">'+esc(String(r.account||''))+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.address||'')+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;padding:5px 6px;border:1px solid #eee;">'+esc(r.owner||'')+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.priorVal)?fmtMV(parseMV(r.priorVal)):'')+'</td>';
@@ -2183,7 +2183,7 @@ function buildJsPDF(cl,folders,reportTitle){
     var lhead=[['#','CAD','Account #','Address','Owner','Prior Value','Prelim Value','Final Appr','Final Mkt','Reduction','% Chg','Savings','Status']];
     var lbody=rows.map(function(r,i){return[
       String(i+1),r.cad||'',r.account||'',
-      (r.address||'').substring(0,26),(r.owner||'').substring(0,20),
+      (r.address||'').substring(0,24),(r.owner||'').substring(0,18),
       parseMV(r.priorVal)?fmtMV(r.priorVal):'',parseMV(r.prelim)?fmtMV(r.prelim):'',
       parseMV(r.finalAppr)?fmtMV(r.finalAppr):'',parseMV(r.finalMkt)?fmtMV(r.finalMkt):'',
       parseMV(r.mktRed)>0?fmtMV(r.mktRed):'',r.pctChange||'',
@@ -2191,12 +2191,12 @@ function buildJsPDF(cl,folders,reportTitle){
       (r.status===''||r.status==='None')?'':r.status,
     ];});
     doc.autoTable({startY:50,head:lhead,body:lbody,margin:{left:margin,right:margin},
-      headStyles:{fillColor:navy,textColor:white,fontSize:6.5,fontStyle:'bold'},
-      bodyStyles:{fontSize:6},
-      columnStyles:{0:{cellWidth:22,halign:'center'},1:{cellWidth:32},2:{cellWidth:48},3:{cellWidth:70},4:{cellWidth:60},
+      headStyles:{fillColor:navy,textColor:white,fontSize:6,fontStyle:'bold'},
+      bodyStyles:{fontSize:6,minCellHeight:7,overflow:'hidden'},
+      columnStyles:{0:{cellWidth:14,halign:'center'},1:{cellWidth:26},2:{cellWidth:62},3:{cellWidth:58},4:{cellWidth:52},
         5:{halign:'right'},6:{halign:'right'},7:{halign:'right'},8:{halign:'right'},
-        9:{halign:'right',textColor:green,fontStyle:'bold'},10:{halign:'right'},
-        11:{halign:'right',textColor:green,fontStyle:'bold'},12:{cellWidth:48}},
+        9:{halign:'right',textColor:green,fontStyle:'bold'},10:{halign:'right',cellWidth:22},
+        11:{halign:'right',textColor:green,fontStyle:'bold'},12:{cellWidth:44}},
       didParseCell:function(d){if(d.section==='body'){var st=rows[d.row.index]?rows[d.row.index].status:'';var col=STATUS_COLORS[st];if(col)d.cell.styles.fillColor=col;}},
       didDrawPage:function(){addPageHeader(cl.name+' — '+f.year+' Account Ledger');}
     });
