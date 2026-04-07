@@ -2076,7 +2076,7 @@ function buildJsPDF(cl,folders,reportTitle){
   // KPI strip — 7 tiles
   var totalPrelimAll=0;
   for(var fi0=0;fi0<folders.length;fi0++){var fr0=folders[fi0].rows||[];totalPrelimAll+=totMV(fr0,'prelim');}
-  var totalRedAll=totalReduced;
+  var totalRedAll=allRows.reduce(function(s,r){return s+(parseMV(r.mktRed)||0);},0);
   var avgRedPct=totalPrelimAll>0&&totalRedAll>0?(totalRedAll/totalPrelimAll*100).toFixed(1):null;
   var kpis=[
     {label:'Total Accounts',val:String(allRows.length),color:navy},
