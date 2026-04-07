@@ -377,6 +377,13 @@ tfoot td.tl{text-align:left}
       <div class="field"><label>Prelim Appr Value Label</label><input id="fm_prelimAppr"/></div>
       <div class="field"><label>Final Appr Value Label</label><input id="fm_finalAppr"/></div>
       <div class="field"><label>Final Market Value Label</label><input id="fm_finalMkt"/></div>
+      <div style="margin-top:10px;padding:10px 12px;background:#fff8e1;border:1px solid #ffc107;border-radius:6px;display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="fm_clientHidden" style="width:16px;height:16px;cursor:pointer;flex-shrink:0"/>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#333">Hide from Client View</div>
+          <div style="font-size:10px;color:#888;margin-top:1px">Client cannot access this year's ledger in PDF exports or their login view</div>
+        </div>
+      </div>
     </div>
     <div class="modal-btns">
       <button class="btn" style="background:#eee;color:#333" onclick="document.getElementById('folderModal').style.display='none'">Cancel</button>
@@ -1076,9 +1083,12 @@ function renderSidebar(){
     if(exp&&c.folders){
       for(var j=0;j<c.folders.length;j++){
         var f=c.folders[j];var isA=activeClientId===c.id&&activeFolderId===f.id;
+        if(isClientSession()&&f.clientHidden)continue;
+        var lockIcon=f.clientHidden?'<span style="font-size:9px;opacity:.5" title="Hidden from client">&#128274;</span>':'';
         html+='<div class="sb-folder'+(isA?' active':'')+'" onclick="selectFolder(\''+c.id+'\',\''+f.id+'\')">'
           +'<span style="font-size:10px;opacity:.6">&#128193;</span>'
           +'<span class="fname">'+esc(f.year)+'</span>'
+          +lockIcon
           +'</div>';
       }
       html+='<div class="sb-add-folder" onclick="openNewFolderModal(\''+c.id+'\')">&#43; add year / folder</div>';
@@ -1098,6 +1108,7 @@ function toggleClient(cid){activeClientId=cid;activeFolderId=null;activeTab='led
 function selectFolder(cid,fid){
   if(isClientSession()){
     var f=getFolder(cid,fid);
+    if(f&&f.clientHidden){return;}
     if(f&&!f.published){showUnpublishedMsg(f.year);return;}
   }
   activeClientId=cid;activeFolderId=fid;
@@ -1231,6 +1242,7 @@ function openNewFolderModal(cid){
   document.getElementById('fm_prelimAppr').value=lbl.prelimAppr;
   document.getElementById('fm_finalAppr').value=lbl.finalAppr;
   document.getElementById('fm_finalMkt').value=lbl.finalMkt;
+  document.getElementById('fm_clientHidden').checked=false;
   document.getElementById('fmDeleteBtn').style.display='none';
   document.getElementById('folderModal').style.display='flex';
   setTimeout(function(){document.getElementById('fm_year').focus();},100);
@@ -1246,10 +1258,11 @@ function saveFolder(){
     finalAppr:document.getElementById('fm_finalAppr').value.trim()||lbl.finalAppr,
     finalMkt:document.getElementById('fm_finalMkt').value.trim()||lbl.finalMkt
   };
-  if(editingFolderId){var f=getFolder(editingClientId,editingFolderId);if(f){f.year=year;f.labels=labels;}}
+  var clientHidden=document.getElementById('fm_clientHidden').checked;
+  if(editingFolderId){var f=getFolder(editingClientId,editingFolderId);if(f){f.year=year;f.labels=labels;f.clientHidden=clientHidden;}}
   else{
     var c=getClient(editingClientId);if(!c)return;if(!c.folders)c.folders=[];
-    var nf={id:uid(),year:year,labels:labels,rows:[emptyRow()]};
+    var nf={id:uid(),year:year,labels:labels,clientHidden:clientHidden,rows:[emptyRow()]};
     c.folders.push(nf);activeClientId=editingClientId;activeFolderId=nf.id;
   }
   saveDB();document.getElementById('folderModal').style.display='none';renderSidebar();renderMain();
@@ -1263,6 +1276,7 @@ function editFolderModal(cid,fid){
   document.getElementById('fm_prelimAppr').value=f.labels.prelimAppr||'';
   document.getElementById('fm_finalAppr').value=f.labels.finalAppr||'';
   document.getElementById('fm_finalMkt').value=f.labels.finalMkt||'';
+  document.getElementById('fm_clientHidden').checked=f.clientHidden||false;
   document.getElementById('fmDeleteBtn').style.display='inline-block';
   document.getElementById('folderModal').style.display='flex';
 }
@@ -2012,7 +2026,9 @@ function exportPDF(mode){
     if(!af){alert('Please open a specific year folder first to export the current year summary.');return;}
     buildJsPDF(cl,[af],'Current Year Report — '+af.year,withLedgers);
   } else {
-    buildJsPDF(cl,cl.folders||[],'All Years Report',withLedgers);
+    var exportFolders=cl.folders||[];
+    if(isClientSession())exportFolders=exportFolders.filter(function(f){return!f.clientHidden;});
+    buildJsPDF(cl,exportFolders,'All Years Report',withLedgers);
   }
 }
 
@@ -2417,6 +2433,7 @@ function exportPDFRange(){
   var to=document.getElementById('drTo').value;
   var cl=getClient(activeClientId);if(!cl)return;
   var folders=cl.folders.filter(function(f){return f.year>=from&&f.year<=to;});
+  if(isClientSession())folders=folders.filter(function(f){return!f.clientHidden;});
   if(!folders.length){alert('No folders found in that range.');return;}
   var includeLedgers=document.getElementById('pdfIncludeLedgers');
   var withLedgers=includeLedgers?includeLedgers.checked:true;
@@ -2907,7 +2924,7 @@ function renderClientOverview(cl){
     h+='<div style="display:flex;gap:8px;margin-bottom:20px">';
     if(totalArb>0)h+='<div style="background:#CCE5FF;border:1px solid #004085;border-radius:6px;padding:8px 14px;font-size:11px;font-weight:600;color:#004085">&#9632; '+totalArb+' Arbitration</div>';
     if(totalFormal>0)h+='<div style="background:#EAD5F5;border:1px solid #9B59B6;border-radius:6px;padding:8px 14px;font-size:11px;font-weight:600;color:#6c3483">&#9632; '+totalFormal+' Awaiting Formal</div>';
-    if(totalTotalRed>0)h+='<div style="background:#D4EDDA;border:1px solid #28A745;border-radius:6px;padding:8px 14px;font-size:11px;font-weight:600;color:#155724">&#8595; '+fmtMV(totalTotalRed)+' Total Value Reduced</div>';
+    if(totalTotalRed>0){} // total value reduced badge removed
     h+='</div>';
   }
 
