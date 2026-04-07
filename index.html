@@ -3015,28 +3015,31 @@ function renderClientOverview(cl){
 
   for(var fi=folders.length-1;fi>=0;fi--){
     var f=folders[fi];var rows=f.rows||[];
+    if(isClientSession()&&f.clientHidden)continue;
     var fSavings=totMV(rows,'taxSavings');
-    var fReduced=rows.filter(function(r){var b=parseMV(r.priorVal),fv=parseMV(r.finalAppr);return b&&fv&&fv<b;}).length;
+    var fReduced=rows.filter(function(r){return isReduced(r);}).length;
     var fLit=rows.filter(function(r){return r.status==='Active Litigation';}).length;
     var fArb=rows.filter(function(r){return r.status==='Arbitration';}).length;
     var fFormal=rows.filter(function(r){return r.status==='Awaiting Formal';}).length;
     var fPrelim=totMV(rows,'prelim');var fPrior=totMV(rows,'priorVal');
     var isPublished=f.published===true;
+    var isHidden=f.clientHidden===true;
     var cardStyle=(!isPublished&&isClientSession())?'opacity:.7':'';
 
-    // Card click behavior depends on session and published state
     var cardClick=isClientSession()&&!isPublished
       ?'showUnpublishedMsg(\''+f.year+'\')'
       :'selectFolder(\''+cl.id+'\',\''+f.id+'\')';
 
     h+='<div class="cc-card" onclick="'+cardClick+'" style="'+cardStyle+'">';
     h+='<div class="cc-card-hdr" style="position:relative"><h3>'+esc(f.year)+' Tax Year</h3>';
-    // Staff sees published toggle; client sees lock icon if unpublished
     if(!isClientSession()){
+      h+='<div style="display:flex;gap:8px;align-items:center">';
+      if(isHidden)h+='<span style="font-size:10px;color:rgba(255,200,0,.8)" title="Hidden from client">&#128274;</span>';
       h+='<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:rgba(255,255,255,.8);white-space:nowrap">'
        +'<input type="checkbox" '+(isPublished?'checked':'')+' onchange="togglePublished(\''+cl.id+'\',\''+f.id+'\',this.checked)" style="cursor:pointer;accent-color:#C9A84C"/>'
        +(isPublished?'<span style="color:#C9A84C">Published</span>':'<span style="opacity:.6">Draft</span>')
        +'</label>';
+      h+='</div>';
     } else if(!isPublished){
       h+='<span style="font-size:14px" title="Update in progress">🔒</span>';
     }
@@ -3052,7 +3055,8 @@ function renderClientOverview(cl){
     if(hasFooter){
       h+='<div class="cc-card-ftr">';
       if(!isClientSession()){
-        h+='<span style="color:'+(isPublished?'#28a745':'#aaa')+'">'+( isPublished?'&#10003; Visible to client':'&#8203;Hidden from client')+'</span>';
+        h+='<span style="color:'+(isPublished?'#28a745':'#aaa')+'">'+(isPublished?'&#10003; Visible to client':'&#8203;Hidden from client')+'</span>';
+        if(isHidden)h+='<span style="color:rgba(255,200,0,.9);font-size:10px">&#128274; Client view locked</span>';
       } else if(!isPublished){
         h+='<span style="color:#888">&#128274; Update in progress</span>';
       }
