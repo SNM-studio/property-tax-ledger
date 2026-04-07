@@ -758,9 +758,31 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function getClient(id){return(db.clients||[]).filter(function(c){return c.id===id;})[0];}
 function getFolder(cid,fid){var c=getClient(cid);if(!c||!c.folders)return null;return c.folders.filter(function(f){return f.id===fid;})[0];}
 function getActiveFolder(){return getFolder(activeClientId,activeFolderId);}
+function getMktRed(r){
+  var prelim=parseMV(r.prelim);var prelimAppr=parseMV(r.prelimAppr);
+  var finalMkt=parseMV(r.finalMkt);var finalAppr=parseMV(r.finalAppr);
+  var base=prelimAppr!==null?prelimAppr:prelim;
+  if(base===null)return 0;
+  if(finalMkt!==null&&finalMkt<base)return base-finalMkt;
+  if(finalAppr!==null&&finalAppr<base)return base-finalAppr;
+  return 0;
+}
+function fmtMktRed(r){var v=getMktRed(r);return v>0?fmtMV(v):'';}
 function parseMV(v){if(v===null||v===undefined||v==='')return null;var n=parseFloat(String(v).replace(/[$,\s]/g,''));return isNaN(n)?null:n;}
 function fmtMV(v){var n=parseMV(v);return n===null?'':'$'+Math.round(n).toLocaleString();}
-function totMV(rows,k){return rows.reduce(function(s,r){return s+(parseMV(r[k])||0);},0);}
+function totMV(rows,k){
+  if(k==='mktRed'){
+    return rows.reduce(function(s,r){
+      var prelim=parseMV(r.prelim);var prelimAppr=parseMV(r.prelimAppr);
+      var finalMkt=parseMV(r.finalMkt);var finalAppr=parseMV(r.finalAppr);
+      var base=prelimAppr!==null?prelimAppr:prelim;
+      if(base===null)return s;
+      var diff=finalMkt!==null&&finalMkt<base?base-finalMkt:(finalAppr!==null&&finalAppr<base?base-finalAppr:0);
+      return s+diff;
+    },0);
+  }
+  return rows.reduce(function(s,r){return s+(parseMV(r[k])||0);},0);
+}
 
 function defaultLabels(year){
   var py=year?String(parseInt(year)-1):String(new Date().getFullYear()-1);
@@ -1363,7 +1385,7 @@ function updateField(id,field,val){
     if(pc){var pv=parseFloat(r.pctChange)||0;pc.textContent=r.pctChange||'';pc.style.color=r.pctChange?(pv<0?'#155724':pv>0?'#721c24':'#555'):'#555';}
     var vf=getFields(f.labels);var cells=tr.querySelectorAll('td');
     for(var i=0;i<vf.length;i++){
-      if(vf[i].k==='mktRed'&&cells[i])cells[i].textContent=fmtMV(r.mktRed)||'';
+      if(vf[i].k==='mktRed'&&cells[i])cells[i].textContent=fmtMktRed(r);
       if(vf[i].k==='taxSavings'&&cells[i])cells[i].textContent=fmtMV(r.taxSavings)||'';
       if(vf[i].k==='status'&&cells[i]){var sel=cells[i].querySelector('select');if(sel)sel.value=r.status;}
     }
@@ -1436,10 +1458,12 @@ function validateImportRow(r){
       r[k]='';
     }
   }
-  // Tax rate sanity check — flag if > 1 (likely entered as percentage not decimal)
+  // Tax rate sanity check — auto-convert if > 1 (entered as percentage not decimal)
   var rate=parseFloat(r.taxRate);
   if(!isNaN(rate)&&rate>1){
-    warnings.push('Tax rate '+rate+' looks like a percentage — stored as-is, verify it is correct');
+    var converted=(rate/100).toFixed(8);
+    r.taxRate=converted;
+    warnings.push('Tax rate '+rate+'% auto-converted to decimal '+converted+' — verify this is correct');
   }
   // Negative values don't make sense for property values
   var posFields=['priorVal','prelim','prelimAppr','finalAppr','finalMkt'];
@@ -1764,7 +1788,7 @@ function exportExcel(){
     var bg=STATUS_FILLS[r.status]||(ri%2===0?'#FFFFFF':'#EEF4FB');
     var pv=parseFloat(r.pctChange)||0;
     var pctColor=pv<0?'#155724':pv>0?'#721c24':'#444';
-    var redAmt=parseMV(r.mktRed)||0;var savAmt=parseMV(r.taxSavings)||0;
+    var redAmt=getMktRed(r);var savAmt=parseMV(r.taxSavings)||0;
     var displayStatus=(r.status===''||r.status==='None')?'':r.status;
     html+='<tr>';
     html+='<td style="background:'+bg+';color:#888;font-size:9pt;text-align:center;padding:5px 6px;border:1px solid #eee;">'+(ri+1)+'</td>';
@@ -2154,7 +2178,7 @@ function buildJsPDF(cl,folders,reportTitle,withLedgers){
   // KPI strip — 7 tiles
   var totalPrelimAll=0;
   for(var fi0=0;fi0<folders.length;fi0++){var fr0=folders[fi0].rows||[];totalPrelimAll+=totMV(fr0,'prelim');}
-  var totalRedAll=allRows.reduce(function(s,r){return s+(parseMV(r.mktRed)||0);},0);
+  var totalRedAll=totMV(allRows,'mktRed');
   var avgRedPct=totalPrelimAll>0&&totalRedAll>0?(totalRedAll/totalPrelimAll*100).toFixed(1):null;
   var latestPdfFolder=folders[folders.length-1];
   var latestPdfCount=latestPdfFolder?(latestPdfFolder.rows||[]).length:allRows.length;
@@ -2255,7 +2279,7 @@ function buildJsPDF(cl,folders,reportTitle,withLedgers){
   // We'll build a placeholder TOC now and fill page numbers after rendering
   var tocStartY=y;
   var tocLines=[];
-  tocLines.push({label:'Executive Summary',page:2});
+  tocLines.push({label:'Executive Summary',page:1});
   if(withLedgers){
     for(var ti=0;ti<ledgerFolders.length;ti++){
       tocLines.push({label:ledgerFolders[ti].year+' Account Ledger ('+ledgerFolders[ti].rows.length+' accounts)',page:'—'});
@@ -2344,7 +2368,7 @@ function buildJsPDF(cl,folders,reportTitle,withLedgers){
         (r.address||'').substring(0,26),(r.owner||'').substring(0,20),
         parseMV(r.priorVal)?fmtMV(r.priorVal):'',parseMV(r.prelim)?fmtMV(r.prelim):'',
         parseMV(r.finalMkt)?fmtMV(r.finalMkt):'',parseMV(r.finalAppr)?fmtMV(r.finalAppr):'',
-        parseMV(r.mktRed)>0?fmtMV(r.mktRed):'',r.pctChange||'',
+        getMktRed(r)>0?fmtMV(getMktRed(r)):'',r.pctChange||'',
         parseMV(r.taxSavings)>0?fmtMV(r.taxSavings):'',
         (r.status===''||r.status==='None')?'':r.status,
       ];});
@@ -2381,7 +2405,7 @@ function buildJsPDF(cl,folders,reportTitle,withLedgers){
     var tl=tocLines[ti];
     if(tl.label!=='Executive Summary'&&withLedgers){
       var yr3=tl.label.split(' ')[0];
-      if(ledgerStartPages[yr3])tl.page=ledgerStartPages[yr3];
+      if(ledgerStartPages[yr3])tl.page=ledgerStartPages[yr3]-1; // offset: cover page is unnumbered
     }
     var ty3=tocStartY+ti*14;
     var isExec2=ti===0;
@@ -2518,7 +2542,7 @@ function renderTable(){
       }
       else if(fld.k==='status'){var sopts='';for(var si=0;si<STATUS.length;si++)sopts+='<option'+(r.status===STATUS[si]?' selected':'')+'>'+STATUS[si]+'</option>';tbody+='<td style="min-width:'+fld.w+'px"><select'+(canEdit()?'':' disabled')+' onchange="updateField(\''+r.id+'\',\'status\',this.value)">'+sopts+'</select></td>';}
       else if(fld.k==='pctChange'){tbody+='<td class="pct-cell calc-cell" style="min-width:'+fld.w+'px;text-align:right;font-weight:600;color:'+pctColor+'">'+esc(r.pctChange||'')+'</td>';}
-      else if(fld.k==='mktRed'){tbody+='<td class="calc-cell" style="min-width:'+fld.w+'px;text-align:right;font-weight:600;color:#155724">'+esc(fmtMV(r.mktRed)||'')+'</td>';}
+      else if(fld.k==='mktRed'){tbody+='<td class="calc-cell" style="min-width:'+fld.w+'px;text-align:right;font-weight:600;color:#155724">'+esc(fmtMktRed(r))+'</td>';}
       else if(fld.k==='taxSavings'){tbody+='<td class="calc-cell" style="min-width:'+fld.w+'px;text-align:right;font-weight:600;color:#155724">'+esc(fmtMV(r.taxSavings)||'')+'</td>';}
       else if(fld.k==='finalAppr'){tbody+='<td style="min-width:'+fld.w+'px;text-align:right"><input value="'+esc(fmtMV(r.finalAppr))+'"'+(canEdit()?'':' disabled')+' onchange="updateField(\''+r.id+'\',\'finalAppr\',this.value.replace(/[$,]/g,\'\'))" onfocus="this.value=this.value.replace(/[$,]/g,\'\')" onblur="if(this.value)this.value=fmtMV(this.value)" style="text-align:right"/><span class="arrow-cell">'+(isRed?'<span class="arrow-dn">&#8595;</span>':'')+'</span></td>';}
       else if(fld.mv){tbody+='<td style="min-width:'+fld.w+'px;text-align:right"><input value="'+esc(fmtMV(r[fld.k]))+'"'+(canEdit()?'':' disabled')+' onchange="updateField(\''+r.id+'\',\''+fld.k+'\',this.value.replace(/[$,]/g,\'\'))" onfocus="this.value=this.value.replace(/[$,]/g,\'\')" onblur="if(this.value)this.value=fmtMV(this.value)" style="text-align:right"/></td>';}
