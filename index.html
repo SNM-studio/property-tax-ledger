@@ -2509,6 +2509,7 @@ function renderSummary(){
   var latestYoyData=yoyData.length?yoyData[yoyData.length-1]:null;
   var latestAccts=latestYoyData?latestYoyData.accounts:0;
   var latestYr=latestYoyData?latestYoyData.year:'';
+  var totPrior=yoyData.reduce(function(s,d){return s+d.prior;},0);
   var totFinal=yoyData.reduce(function(s,d){return s+d.final;},0);
   var totMktRed2=yoyData.reduce(function(s,d){return s+d.mktRed;},0);
   var totSav=yoyData.reduce(function(s,d){return s+d.savings;},0);
