@@ -2181,6 +2181,7 @@ function buildJsPDF(cl,folders,reportTitle,withLedgers){
 
   // ── Table of Contents (inserted on page 1 if space, else new page) ────────────
   var tocFolders=withLedgers?folders.filter(function(f){return(f.rows||[]).length>0;}):[];
+  var ledgerFolders=tocFolders.slice().reverse();
   if(y<pageH-80){
     doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(navy[0],navy[1],navy[2]);
     doc.text('CONTENTS',margin,y+11);y+=16;
@@ -2194,8 +2195,8 @@ function buildJsPDF(cl,folders,reportTitle,withLedgers){
   var tocLines=[];
   tocLines.push({label:'Executive Summary',page:1});
   if(withLedgers){
-    for(var ti=0;ti<tocFolders.length;ti++){
-      tocLines.push({label:tocFolders[ti].year+' Account Ledger ('+tocFolders[ti].rows.length+' accounts)',page:'—'});
+    for(var ti=0;ti<ledgerFolders.length;ti++){
+      tocLines.push({label:ledgerFolders[ti].year+' Account Ledger ('+ledgerFolders[ti].rows.length+' accounts)',page:'—'});
     }
   }
   // Draw TOC placeholder rows
@@ -2214,8 +2215,8 @@ function buildJsPDF(cl,folders,reportTitle,withLedgers){
   // ── Per-year account ledger pages ────────────────────────────────────────────
   var ledgerStartPages={};
   if(withLedgers){
-    for(var fi=0;fi<folders.length;fi++){
-      var f=folders[fi];var rows=f.rows||[];
+    for(var fi=0;fi<ledgerFolders.length;fi++){
+      var f=ledgerFolders[fi];var rows=f.rows||[];
       if(rows.length===0)continue;
 
       // ── Divider page ──
@@ -2505,7 +2506,9 @@ function renderSummary(){
     var yReduced=yr2.filter(function(r){return isReduced(r);}).length;
     yoyData.push({year:yf.year,accounts:yr2.length,reduced:yReduced,lit:yLit,arb:yArb,prior:yPrior,final:yFinal,mktRed:yMktRed,savings:ySav});
   }
-  var totPrior=yoyData.reduce(function(s,d){return s+d.prior;},0);
+  var latestYoyData=yoyData.length?yoyData[yoyData.length-1]:null;
+  var latestAccts=latestYoyData?latestYoyData.accounts:0;
+  var latestYr=latestYoyData?latestYoyData.year:'';
   var totFinal=yoyData.reduce(function(s,d){return s+d.final;},0);
   var totMktRed2=yoyData.reduce(function(s,d){return s+d.mktRed;},0);
   var totSav=yoyData.reduce(function(s,d){return s+d.savings;},0);
@@ -2547,7 +2550,7 @@ function renderSummary(){
     +'<tbody>'+yoyRows+'</tbody>'
     +'<tfoot><tr>'
     +'<td style="background:#002147;color:#fff;font-weight:700;padding:7px 10px">TOTAL</td>'
-    +'<td style="background:#002147;color:#fff;font-weight:700;padding:7px 10px;text-align:right">'+totAccts+'</td>'
+    +'<td style="background:#002147;color:#fff;font-weight:700;padding:7px 10px;text-align:right">'+latestAccts+'<span style="font-size:9px;opacity:.6;margin-left:3px">('+latestYr+')</span></td>'
     +'<td style="background:#002147;color:#a8d5b5;font-weight:700;padding:7px 10px;text-align:right">'+totReduced+'</td>'
     +'<td style="background:#002147;color:#fff;font-weight:700;padding:7px 10px;text-align:right">'+(totLit>0?totLit:'—')+'</td>'
     +'<td style="background:#002147;color:#fff;font-weight:700;padding:7px 10px;text-align:right">'+(totArb>0?totArb:'—')+'</td>'
