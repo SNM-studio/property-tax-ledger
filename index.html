@@ -2351,7 +2351,9 @@ function renderTable(){
     else tfoot+='<td></td>';
   }
   tfoot+='<td></td></tr></tfoot>';
+  var _wrap=document.querySelector('.tbl-wrap');var _sx=_wrap?_wrap.scrollLeft:0;var _sy=_wrap?_wrap.scrollTop:0;
   document.getElementById('tableWrap').innerHTML='<div class="tbl-wrap"><table>'+thead+tbody+tfoot+'</table></div>';
+  var _wrap2=document.querySelector('.tbl-wrap');if(_wrap2){_wrap2.scrollLeft=_sx;_wrap2.scrollTop=_sy;}
 }
 
 // ── Summary ────────────────────────────────────────────────────────────────────
