@@ -1726,7 +1726,7 @@ function exportExcel(){
   var rows=f.rows||[];var L=f.labels;
   var NC=16;
   var ledgerHdrs=['#','CAD','Account #','Address','CAD Owner/Assessee',
-    L.prior,L.prelim,L.prelimAppr||'Prelim Appr Value',L.finalAppr,L.finalMkt,
+    L.prior,L.prelim,L.prelimAppr||'Prelim Appr Value',L.finalMkt,L.finalAppr,
     'Market Reduction *','% Change *','Tax Savings *','Status','Notes'];
 
   var html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
@@ -1766,8 +1766,8 @@ function exportExcel(){
     html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.priorVal)?fmtMV(parseMV(r.priorVal)):'')+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.prelim)?fmtMV(parseMV(r.prelim)):'')+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.prelimAppr)?fmtMV(parseMV(r.prelimAppr)):'')+'</td>';
-    html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.finalAppr)?fmtMV(parseMV(r.finalAppr)):'')+'</td>';
     html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.finalMkt)?fmtMV(parseMV(r.finalMkt)):'')+'</td>';
+    html+='<td style="background:'+bg+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(parseMV(r.finalAppr)?fmtMV(parseMV(r.finalAppr)):'')+'</td>';
     html+='<td style="background:'+bg+';color:'+(redAmt>0?'#155724':'#444')+';font-weight:'+(redAmt>0?'bold':'normal')+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(redAmt>0?fmtMV(redAmt):'')+'</td>';
     html+='<td style="background:'+bg+';color:'+pctColor+';font-weight:bold;font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(r.pctChange||'')+'</td>';
     html+='<td style="background:'+bg+';color:'+(savAmt>0?'#155724':'#444')+';font-weight:'+(savAmt>0?'bold':'normal')+';font-size:9pt;text-align:right;padding:5px 6px;border:1px solid #eee;">'+(savAmt>0?fmtMV(savAmt):'')+'</td>';
@@ -1782,7 +1782,7 @@ function exportExcel(){
   html+='<td style="background:#002147;padding:7px 6px;"></td>';
   html+='<td style="background:#002147;color:#fff;font-size:9pt;text-align:right;padding:7px 6px;">'+exportRows.length+' accounts</td>';
   for(var ti=0;ti<2;ti++)html+='<td style="background:#002147;padding:7px 6px;"></td>';
-  var totFs=['priorVal','prelim','prelimAppr','finalAppr','finalMkt','mktRed'];
+  var totFs=['priorVal','prelim','prelimAppr','finalMkt','finalAppr','mktRed'];
   for(var ti=0;ti<totFs.length;ti++){var t=totMV(rows,totFs[ti]);html+='<td style="background:#002147;color:#fff;font-weight:bold;font-size:9pt;text-align:right;padding:7px 6px;">'+(t>0?fmtMV(t):'')+'</td>';}
   html+='<td style="background:#002147;padding:7px 6px;"></td>';
   var ts2=totMV(rows,'taxSavings');
@@ -2180,12 +2180,12 @@ function buildJsPDF(cl,folders,reportTitle){
     if(rows.length===0)continue;
     doc.addPage();addPageHeader(cl.name+' — '+f.year+' Account Ledger');
     var STATUS_COLORS={'Active Litigation':[255,243,205],'Arbitration':[204,229,255],'Reduced Below Last Year':[212,237,218],'Awaiting Formal':[234,213,245]};
-    var lhead=[['#','CAD','Account #','Address','Owner','Prior Value','Prelim Value','Final Appr','Final Mkt','Reduction','% Chg','Savings','Status']];
+    var lhead=[['#','CAD','Account #','Address','Owner','Prior Value','Prelim Value','Final Mkt','Final Appr','Reduction','% Chg','Savings','Status']];
     var lbody=rows.map(function(r,i){return[
       String(i+1),r.cad||'',r.account||'',
       (r.address||'').substring(0,26),(r.owner||'').substring(0,20),
       parseMV(r.priorVal)?fmtMV(r.priorVal):'',parseMV(r.prelim)?fmtMV(r.prelim):'',
-      parseMV(r.finalAppr)?fmtMV(r.finalAppr):'',parseMV(r.finalMkt)?fmtMV(r.finalMkt):'',
+      parseMV(r.finalMkt)?fmtMV(r.finalMkt):'',parseMV(r.finalAppr)?fmtMV(r.finalAppr):'',
       parseMV(r.mktRed)>0?fmtMV(r.mktRed):'',r.pctChange||'',
       parseMV(r.taxSavings)>0?fmtMV(r.taxSavings):'',
       (r.status===''||r.status==='None')?'':r.status,
@@ -2281,8 +2281,8 @@ function getFields(labels){
     {k:'priorVal',label:labels.prior,w:130,mv:true},
     {k:'prelim',label:labels.prelim,w:130,mv:true},
     {k:'prelimAppr',label:labels.prelimAppr||'Prelim Appr Value',w:130,mv:true},
-    {k:'finalAppr',label:labels.finalAppr,w:130,mv:true},
     {k:'finalMkt',label:labels.finalMkt,w:130,mv:true},
+    {k:'finalAppr',label:labels.finalAppr,w:130,mv:true},
     {k:'mktRed',label:'Market Reduction *',w:130,mv:true,calc:true},
     {k:'pctChange',label:'% Change *',w:100,mv:false,calc:true},
     {k:'taxRate',label:'Tax Rate',w:90,mv:false,full:true},
